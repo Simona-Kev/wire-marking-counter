@@ -88,9 +88,13 @@ if mode == "Wire Marking Counter":
 
     # RESET
     if st.sidebar.button("🔄 Reset rules"):
-        st.session_state.rules = DEFAULT_RULES.copy()
-        save_rules(st.session_state.rules)
-        st.rerun()
+    st.session_state.rules = DEFAULT_RULES.copy()
+    save_rules(st.session_state.rules)
+
+    # 🔥 force clean UI refresh
+    st.session_state["rules_sorter"] = DEFAULT_RULES.copy()
+
+    st.rerun()
 
 else:
     st.sidebar.info("Rules only available in Wire tool")
