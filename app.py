@@ -9,6 +9,14 @@ from streamlit_sortables import sort_items
 st.title("Wire & Component Tools")
 
 # =========================================================
+# PROJECT CODE HELPER (NEW FIX)
+# =========================================================
+def get_project_code(filename: str):
+    base = os.path.splitext(filename)[0].strip()
+    parts = base.split()
+    return parts[0] if len(parts) > 0 else "output"
+
+# =========================================================
 # MODE
 # =========================================================
 mode = st.radio(
@@ -69,7 +77,6 @@ if mode == "Wire Marking Counter":
     st.sidebar.write("Current order:")
     st.sidebar.write(st.session_state.rules)
 
-    # ADD RULE
     new_rule = st.sidebar.text_input("Add rule")
 
     if st.sidebar.button("➕ Add rule"):
@@ -80,7 +87,6 @@ if mode == "Wire Marking Counter":
                 st.session_state.rules_version += 1
                 st.rerun()
 
-    # REMOVE RULE
     remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
 
     if st.sidebar.button("❌ Delete rule"):
@@ -107,7 +113,7 @@ else:
 priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
 
 # =========================================================
-# 🔥 FIXED SORT FUNCTION (24V / S_0V CORRECT)
+# SORT FUNCTION
 # =========================================================
 def natural_key(wire):
     wire = str(wire).strip().upper()
@@ -121,32 +127,22 @@ def natural_key(wire):
             suffix = wire[len(prefix):]
             n = nums(suffix)
 
-            # =====================================================
-            # FIX 24V / S_0V ORDER: base → 1 → 2 → 3
-            # =====================================================
             if prefix in ["24V", "S_0V"]:
 
-                # base item (24V or S_0V)
                 if suffix == "" or suffix == "_":
                     return (priority, 0)
 
-                # remove underscore if exists
                 if suffix.startswith("_"):
                     suffix = suffix[1:]
 
-                # numeric suffix
                 if suffix.isdigit():
                     return (priority, int(suffix))
 
-                # fallback number extraction
                 if n:
                     return (priority, n[0])
 
                 return (priority, 999)
 
-            # =====================================================
-            # X / Y FIX
-            # =====================================================
             if prefix in ["X", "Y"]:
                 if len(n) >= 2:
                     return (priority, n[0], n[1])
@@ -154,9 +150,6 @@ def natural_key(wire):
                     return (priority, n[0], 0)
                 return (priority, 0, 0)
 
-            # =====================================================
-            # DEFAULT GROUP
-            # =====================================================
             if n:
                 return (priority, n[0], 0)
 
@@ -246,14 +239,11 @@ if mode == "Wire Marking Counter":
 
         output.seek(0)
 
-        base = "output"
-        if uploaded_file is not None:
-            base = os.path.splitext(uploaded_file.name)[0].split()[0]
+        project = get_project_code(uploaded_file.name)
 
         st.download_button(
             "Download Excel",
             output,
-            project = get_project_code(uploaded_file.name)
             file_name=f"{project} laidų žymėjimai.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -300,14 +290,11 @@ if mode == "Component Marking Cleaner":
 
         output.seek(0)
 
-        base = "output"
-        if uploaded_file is not None:
-            base = os.path.splitext(uploaded_file.name)[0].split()[0]
+        project = get_project_code(uploaded_file.name)
 
         st.download_button(
             "Download Unique Markings",
             output,
-            project = get_project_code(uploaded_file.name)
             file_name=f"{project} komponentų žymėjimai.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
