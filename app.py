@@ -3,47 +3,39 @@ import pandas as pd
 import io
 import os
 import re
+from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Dynamic Sorting)")
+st.title("Wire Marking Counter (Drag & Drop Sorting)")
 
-# ---------------- SESSION STATE (STORE RULES) ----------------
+# ---------------- DEFAULT SORT ORDER ----------------
 if "rules" not in st.session_state:
-    st.session_state.rules = {
-        "1L": 1,
-        "L": 2,
-        "N": 3,
-        "24V": 4,
-        "0V": 5,
-        "S_0V": 6,
-        "A": 7,
-        "X": 8,
-        "Y": 9
-    }
+    st.session_state.rules = [
+        "1L",
+        "L",
+        "N",
+        "24V",
+        "0V",
+        "S_0V",
+        "A",
+        "X",
+        "Y"
+    ]
 
-# ---------------- SIDEBAR UI ----------------
-st.sidebar.header("Sorting Rules")
+# ---------------- DRAG & DROP UI ----------------
+st.sidebar.header("Sorting Priority (Drag to reorder)")
 
-st.sidebar.write("Edit priority (lower = higher priority)")
+st.session_state.rules = sort_items(
+    st.session_state.rules,
+    direction="vertical"
+)
 
-for key in list(st.session_state.rules.keys()):
-    st.session_state.rules[key] = st.sidebar.number_input(
-        f"{key}",
-        value=st.session_state.rules[key],
-        step=1
-    )
+st.sidebar.write("Current order:")
+st.sidebar.write(st.session_state.rules)
 
-# ➕ Add new rule
-st.sidebar.subheader("Add new rule")
+# Convert list → priority map
+priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-new_prefix = st.sidebar.text_input("Prefix (e.g. 24V, Z, PWR)")
-new_priority = st.sidebar.number_input("Priority", value=10, step=1)
-
-if st.sidebar.button("Add rule"):
-    if new_prefix:
-        st.session_state.rules[new_prefix.upper()] = new_priority
-        st.rerun()
-
-# ---------------- NATURAL SORT FUNCTION ----------------
+# ---------------- SORT FUNCTION ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -51,15 +43,15 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
-    # match rules dynamically
-    for prefix, priority in st.session_state.rules.items():
+    # match by prefix order from UI
+    for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
             return (priority, extract_numbers(wire))
 
     return (99, wire)
 
 
-# ---------------- UPLOAD ----------------
+# ---------------- FILE UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
@@ -77,7 +69,7 @@ if uploaded_file:
     wire_col = "Wireno"
     connections = {}
 
-    # ---------------- PROCESS ----------------
+    # ---------------- PROCESS DATA ----------------
     for _, row in df.iterrows():
 
         wire = row[wire_col]
@@ -99,7 +91,8 @@ if uploaded_file:
             start_component = str(start_component).strip()
 
             if pd.notna(start_conn):
-                connections[wire].add(f"{start_component}|{str(start_conn).strip()}")
+                start_conn = str(start_conn).strip()
+                connections[wire].add(f"{start_component}|{start_conn}")
             else:
                 connections[wire].add(f"{start_component}|MISSING_START_{row_id}")
 
@@ -111,7 +104,8 @@ if uploaded_file:
             end_component = str(end_component).strip()
 
             if pd.notna(end_conn):
-                connections[wire].add(f"{end_component}|{str(end_conn).strip()}")
+                end_conn = str(end_conn).strip()
+                connections[wire].add(f"{end_component}|{end_conn}")
             else:
                 connections[wire].add(f"{end_component}|MISSING_END_{row_id}")
 
@@ -130,7 +124,7 @@ if uploaded_file:
     st.success(f"Total wires: {len(result)}")
     st.success(f"Total markings needed: {result['Markings'].sum()}")
 
-    # ---------------- EXPORT ----------------
+    # ---------------- DOWNLOAD FILE NAME ----------------
     original_name = uploaded_file.name
     base_name = os.path.splitext(original_name)[0]
     project_code = base_name.split()[0]
