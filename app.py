@@ -158,7 +158,7 @@ if mode == "Wire Marking Counter":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False)
+            result.to_excel(writer, index=False, header=False, sheet_name="Laidų žymėjimai")
 
         output.seek(0)
 
@@ -211,7 +211,7 @@ if mode == "Component Marking Cleaner":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False)
+            result.to_excel(writer, index=False, header=False, sheet_name="Komponentų žymėjimai")
 
         output.seek(0)
 
