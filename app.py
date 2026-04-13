@@ -30,34 +30,32 @@ def natural_key(wire):
     if wire.startswith("24V"):
         return (4, extract_numbers(wire))
 
-    # 0V (always first in this group)
-if wire == "0V":
-    return (5, 0)
+    # ---------------- 0V / S_0V FIX (CORRECT INDENTATION) ----------------
+    if wire == "0V":
+        return (5, 0)
 
-# S_0V base (without numbers)
-if wire == "S_0V":
-    return (6, 0)
+    if wire == "S_0V":
+        return (6, 0)
 
-# S_0V with numbers (S_0V1, S_0V2...)
-if wire.startswith("S_0V"):
-    nums = re.findall(r"\d+", wire)
-    return (7, int(nums[0]) if nums else 0)
+    if wire.startswith("S_0V"):
+        nums = re.findall(r"\d+", wire)
+        return (7, int(nums[0]) if nums else 0)
 
     # pure numbers
     if wire.isdigit():
-        return (6, int(wire))
+        return (8, int(wire))
 
     # A group
     if wire.startswith("A"):
-        return (7, extract_numbers(wire))
+        return (9, extract_numbers(wire))
 
     # X group
     if wire.startswith("X"):
-        return (8, extract_numbers(wire))
+        return (10, extract_numbers(wire))
 
     # Y group
     if wire.startswith("Y"):
-        return (9, extract_numbers(wire))
+        return (11, extract_numbers(wire))
 
     # everything else
     return (99, wire)
@@ -128,7 +126,7 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SORT (IMPORTANT UPGRADE) ----------------
+    # ---------------- SORT ----------------
     result["sort_key"] = result["Wire"].apply(natural_key)
     result = result.sort_values("sort_key").drop(columns=["sort_key"])
 
