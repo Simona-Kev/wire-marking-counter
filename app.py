@@ -6,9 +6,9 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Persistent Rules + Numbers Group)")
+st.title("Wire Marking Counter (Fully Drag-Based System)")
 
-# ---------------- FILE STORAGE ----------------
+# ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
 
 DEFAULT_RULES = [
@@ -24,26 +24,25 @@ DEFAULT_RULES = [
     "NUMBERS"
 ]
 
-# ---------------- LOAD RULES ----------------
+# ---------------- LOAD ----------------
 def load_rules():
     if os.path.exists(RULES_FILE):
         with open(RULES_FILE, "r") as f:
             return json.load(f)
     return DEFAULT_RULES
 
-# ---------------- SAVE RULES ----------------
+# ---------------- SAVE ----------------
 def save_rules(rules):
     with open(RULES_FILE, "w") as f:
         json.dump(rules, f)
 
-# ---------------- SESSION INIT ----------------
+# ---------------- INIT ----------------
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.header("Sorting Rules (Drag & Drop)")
 
-# Drag & drop reorder
 st.session_state.rules = sort_items(
     st.session_state.rules,
     direction="vertical"
@@ -53,9 +52,7 @@ st.sidebar.subheader("Current order")
 st.sidebar.write(st.session_state.rules)
 
 # ---------------- ADD RULE ----------------
-st.sidebar.subheader("Add rule")
-
-new_rule = st.sidebar.text_input("Prefix (e.g. PWR, CTRL, Z)")
+new_rule = st.sidebar.text_input("Add rule (prefix)")
 
 if st.sidebar.button("➕ Add rule"):
     if new_rule:
@@ -65,24 +62,18 @@ if st.sidebar.button("➕ Add rule"):
             st.rerun()
 
 # ---------------- REMOVE RULE ----------------
-st.sidebar.subheader("Remove rule")
-
-remove_rule = st.sidebar.selectbox(
-    "Select rule",
-    st.session_state.rules
-)
+remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
 
 if st.sidebar.button("❌ Remove rule"):
     st.session_state.rules.remove(remove_rule)
     st.rerun()
 
-# ---------------- SAVE BUTTON ----------------
+# ---------------- SAVE / RESET ----------------
 if st.sidebar.button("💾 Save rules"):
     save_rules(st.session_state.rules)
-    st.sidebar.success("Rules saved!")
+    st.sidebar.success("Saved!")
 
-# ---------------- RESET ----------------
-if st.sidebar.button("🔄 Reset to default"):
+if st.sidebar.button("🔄 Reset"):
     st.session_state.rules = DEFAULT_RULES.copy()
     save_rules(st.session_state.rules)
     st.rerun()
@@ -90,7 +81,7 @@ if st.sidebar.button("🔄 Reset to default"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION (FIXED WITH NUMBERS GROUP) ----------------
+# ---------------- SORT FUNCTION (UNIFIED SYSTEM) ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -98,15 +89,7 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
-    # ---------------- NUMBERS GROUP ----------------
-    if wire.isdigit():
-        return (priority_map.get("NUMBERS", 90), int(wire))
-
-    # ---------------- PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
-        if prefix == "NUMBERS":
-            continue
-
         if wire.startswith(prefix):
             return (priority, extract_numbers(wire))
 
