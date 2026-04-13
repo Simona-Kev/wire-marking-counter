@@ -218,6 +218,6 @@ if mode == "Component Marking Cleaner":
         st.download_button(
             "Download Unique Markings",
             output,
-            file_name="component_unique_markings.xlsx",
+            file_name=f"{base} komponentų žymėjimai.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
