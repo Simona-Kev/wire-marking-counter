@@ -4,9 +4,8 @@ import io
 import os
 import re
 import json
-from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Stable Final Version)")
+st.title("Wire Marking Counter (Final Stable Version)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -36,82 +35,43 @@ def save_rules(rules):
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.header("Sorting Rules (Drag & Drop)")
-
-st.session_state.rules = sort_items(
-    st.session_state.rules,
-    direction="vertical"
-)
-
-st.sidebar.write("Current order:")
-st.sidebar.write(st.session_state.rules)
-
-# Add rule
-new_rule = st.sidebar.text_input("Add new prefix")
-
-if st.sidebar.button("➕ Add rule"):
-    if new_rule:
-        new_rule = new_rule.upper()
-        if new_rule not in st.session_state.rules:
-            st.session_state.rules.append(new_rule)
-            st.rerun()
-
-# Remove rule
-remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
-
-if st.sidebar.button("❌ Remove rule"):
-    st.session_state.rules.remove(remove_rule)
-    st.rerun()
-
-# Save / Reset
-if st.sidebar.button("💾 Save rules"):
-    save_rules(st.session_state.rules)
-    st.sidebar.success("Saved!")
-
-if st.sidebar.button("🔄 Reset"):
-    st.session_state.rules = DEFAULT_RULES.copy()
-    save_rules(st.session_state.rules)
-    st.rerun()
-
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION ----------------
+# ---------------- SAFE SORT FUNCTION ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
-    def extract_numbers(text):
-        nums = re.findall(r"\d+", text)
-        return [int(n) for n in nums] if nums else []
+    def nums(text):
+        found = re.findall(r"\d+", text)
+        return [int(x) for x in found] if found else []
 
-    # ---------------- PREFIX GROUPS ----------------
+    # detect prefix group
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
 
-            nums = extract_numbers(wire)
+            n = nums(wire)
 
-            # X / Y special sorting (multi-number safe)
+            # X / Y special handling
             if prefix in ["X", "Y"]:
-                if len(nums) >= 2:
-                    return (priority, nums[0], nums[1])
-                elif len(nums) == 1:
-                    return (priority, nums[0], 0)
+                if len(n) >= 2:
+                    return (priority, n[0], n[1])
+                elif len(n) == 1:
+                    return (priority, n[0], 0)
                 else:
                     return (priority, 0, 0)
 
-            # other groups (24V, S_0V, etc.)
-            if nums:
-                return (priority, nums[0], wire)
+            # normal groups
+            if len(n) > 0:
+                return (priority, n[0], 0)
 
-            return (priority, 0, wire)
+            return (priority, 0, 0)
 
-    # ---------------- NUMBERS LAST ----------------
+    # numbers last
     if wire.isdigit():
-        return (999, int(wire))
+        return (999, int(wire), 0)
 
-    return (999, wire)
-
+    return (999, 0, wire)
 
 # ---------------- UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
@@ -122,9 +82,6 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file, engine="xlrd")
     else:
         df = pd.read_excel(uploaded_file, engine="openpyxl")
-
-    st.subheader("Preview")
-    st.dataframe(df.head())
 
     df.columns = [str(c).strip() for c in df.columns]
 
@@ -170,16 +127,26 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SAFE PYTHON SORT (NO CRASH EVER) ----------------
+    # ---------------- SAFE SORT (FINAL FIX) ----------------
     result["sort_key"] = result["Wire"].apply(natural_key)
+
+    # IMPORTANT: normalize EVERY key into tuple (guaranteed safe)
+    def safe_key(x):
+        k = x["sort_key"]
+        if isinstance(k, tuple):
+            return k
+        if isinstance(k, list):
+            return tuple(k)
+        return (999, 0, str(k))
 
     sorted_rows = sorted(
         result.to_dict("records"),
-        key=lambda x: x["sort_key"]
+        key=safe_key
     )
 
     result = pd.DataFrame(sorted_rows).drop(columns=["sort_key"])
 
+    # ---------------- OUTPUT ----------------
     st.subheader("Result")
     st.dataframe(result)
 
@@ -191,8 +158,6 @@ if uploaded_file:
     base_name = os.path.splitext(original_name)[0]
     project_code = base_name.split()[0]
 
-    download_name = f"{project_code} laidų žymėjimai.xlsx"
-
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -203,6 +168,6 @@ if uploaded_file:
     st.download_button(
         "Download Excel",
         output,
-        file_name=download_name,
+        file_name=f"{project_code} laidų žymėjimai.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
