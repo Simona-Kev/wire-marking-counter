@@ -215,6 +215,8 @@ if mode == "Component Marking Cleaner":
 
         output.seek(0)
 
+        base = os.path.splitext(uploaded_file.name)[0].split()[0]
+        
         st.download_button(
             "Download Unique Markings",
             output,
