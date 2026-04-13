@@ -17,7 +17,7 @@ mode = st.radio(
 )
 
 # =========================================================
-# RULES (GLOBAL STATE - ALWAYS LOADED)
+# RULES STORAGE
 # =========================================================
 RULES_FILE = "rules.json"
 
@@ -37,7 +37,7 @@ def load_rules():
     if os.path.exists(RULES_FILE):
         with open(RULES_FILE, "r") as f:
             return json.load(f)
-        return DEFAULT_RULES
+    return DEFAULT_RULES
 
 def save_rules(rules):
     with open(RULES_FILE, "w") as f:
@@ -47,7 +47,7 @@ if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
 # =========================================================
-# 🔥 SIDEBAR (ALWAYS EXISTS — BUT ACTIVE ONLY IN WIRE MODE)
+# SIDEBAR (ONLY ACTIVE FOR WIRE TOOL)
 # =========================================================
 st.sidebar.header("Sorting Rules")
 
@@ -82,68 +82,95 @@ if mode == "Wire Marking Counter":
         st.session_state.rules.remove(remove_rule)
         st.rerun()
 
-    # SAVE
+    # SAVE RULES
     if st.sidebar.button("💾 Save rules"):
         save_rules(st.session_state.rules)
         st.success("Rules saved!")
 
-    # RESET
+    # RESET RULES
     if st.sidebar.button("🔄 Reset rules"):
         st.session_state.rules = DEFAULT_RULES.copy()
         save_rules(st.session_state.rules)
         st.rerun()
 
 else:
-    st.sidebar.info("Sorting rules available only in Wire tool")
+    st.sidebar.info("Rules available only in Wire tool")
 
 # =========================================================
-# 🔌 WIRE TOOL
+# PRIORITY MAP
 # =========================================================
-if mode == "Wire Marking Counter":
+priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
 
-    priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
+# =========================================================
+# SORT FUNCTION (FIXED FINAL VERSION)
+# =========================================================
+def natural_key(wire):
+    wire = str(wire).strip().upper()
 
-    def natural_key(wire):
-        wire = str(wire).strip().upper()
+    def nums(text):
+        found = re.findall(r"\d+", text)
+        return [int(x) for x in found] if found else []
 
-        def nums(text):
-            found = re.findall(r"\d+", text)
-            return [int(x) for x in found] if found else []
+    for prefix, priority in priority_map.items():
+        if wire.startswith(prefix):
 
-        for prefix, priority in priority_map.items():
-            if wire.startswith(prefix):
+            n = nums(wire)
 
-                n = nums(wire)
+            # -------------------------
+            # FIX: 24V / S_0V FAMILY
+            # -------------------------
+            if prefix in ["24V", "S_0V"]:
 
-                if prefix in ["24V", "S_0V"]:
-                    if wire == prefix:
-                        return (priority, 0, 0)
-                    if n:
-                        return (priority, 1, n[0])
+                # base (24V / S_0V)
+                if wire == prefix:
                     return (priority, 0, 0)
 
-                if prefix in ["X", "Y"]:
-                    if len(n) >= 2:
-                        return (priority, n[0], n[1])
-                    elif len(n) == 1:
-                        return (priority, n[0], 0)
-                    return (priority, 0, 0)
-
+                # 24V_1 / S_0V_1 / etc
                 if n:
-                    return (priority, n[0], 0)
+                    return (priority, 1, n[0])
 
                 return (priority, 0, 0)
 
-        if wire.isdigit():
-            return (999, int(wire), 0)
+            # -------------------------
+            # X / Y FIX
+            # -------------------------
+            if prefix in ["X", "Y"]:
+                if len(n) >= 2:
+                    return (priority, n[0], n[1])
+                elif len(n) == 1:
+                    return (priority, n[0], 0)
+                return (priority, 0, 0)
 
-        return (999, 0, wire)
+            # -------------------------
+            # OTHER PREFIXES
+            # -------------------------
+            if n:
+                return (priority, n[0], 0)
+
+            return (priority, 0, 0)
+
+    # -------------------------
+    # PURE NUMBERS LAST GROUP
+    # -------------------------
+    if wire.isdigit():
+        return (999, int(wire), 0)
+
+    return (999, 0, wire)
+
+# =========================================================
+# WIRE TOOL
+# =========================================================
+if mode == "Wire Marking Counter":
 
     uploaded_file = st.file_uploader("Upload Wire Excel", type=["xlsx", "xls"])
 
     if uploaded_file:
 
-        df = pd.read_excel(uploaded_file, engine="xlrd" if uploaded_file.name.endswith(".xls") else "openpyxl")
+        df = pd.read_excel(
+            uploaded_file,
+            engine="xlrd" if uploaded_file.name.endswith(".xls") else "openpyxl"
+        )
+
         df.columns = [str(c).strip() for c in df.columns]
 
         wire_col = "Wireno"
@@ -196,7 +223,7 @@ if mode == "Wire Marking Counter":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False, sheet_name="Laidų žymėjimai")
+            result.to_excel(output, index=False, sheet_name="Laidų žymėjimai")
 
         output.seek(0)
 
@@ -210,7 +237,7 @@ if mode == "Wire Marking Counter":
         )
 
 # =========================================================
-# 🧩 COMPONENT TOOL
+# COMPONENT TOOL
 # =========================================================
 if mode == "Component Marking Cleaner":
 
@@ -224,19 +251,18 @@ if mode == "Component Marking Cleaner":
 
     if uploaded_file:
 
-        df = pd.read_excel(uploaded_file, engine="xlrd" if uploaded_file.name.endswith(".xls") else "openpyxl")
+        df = pd.read_excel(
+            uploaded_file,
+            engine="xlrd" if uploaded_file.name.endswith(".xls") else "openpyxl"
+        )
+
         df.columns = [str(c).strip() for c in df.columns]
 
         if "Name" not in df.columns:
             st.error("File must contain 'Name' column")
             st.stop()
 
-        values = (
-            df["Name"]
-            .dropna()
-            .astype(str)
-            .str.strip()
-        )
+        values = df["Name"].dropna().astype(str).str.strip()
 
         unique_values = sorted(set(values))
 
@@ -249,7 +275,7 @@ if mode == "Component Marking Cleaner":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False, sheet_name="Komponentų žymėjimai")
+            result.to_excel(output, index=False, sheet_name="Komponentų žymėjimai")
 
         output.seek(0)
 
