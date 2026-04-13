@@ -4,8 +4,9 @@ import io
 import os
 import re
 import json
+from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Final Stable Version)")
+st.title("Wire Marking Counter (Final Stable + Fixed Groups)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -38,7 +39,45 @@ if "rules" not in st.session_state:
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SAFE SORT FUNCTION ----------------
+# ---------------- SIDEBAR (DRAG & DROP BACK) ----------------
+st.sidebar.header("Sorting Rules (Drag & Drop)")
+
+st.session_state.rules = sort_items(
+    st.session_state.rules,
+    direction="vertical"
+)
+
+st.sidebar.write("Current order:")
+st.sidebar.write(st.session_state.rules)
+
+# Add rule
+new_rule = st.sidebar.text_input("Add new prefix")
+
+if st.sidebar.button("➕ Add rule"):
+    if new_rule:
+        new_rule = new_rule.upper()
+        if new_rule not in st.session_state.rules:
+            st.session_state.rules.append(new_rule)
+            st.rerun()
+
+# Remove rule
+remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
+
+if st.sidebar.button("❌ Remove rule"):
+    st.session_state.rules.remove(remove_rule)
+    st.rerun()
+
+# Save / Reset
+if st.sidebar.button("💾 Save rules"):
+    save_rules(st.session_state.rules)
+    st.sidebar.success("Saved!")
+
+if st.sidebar.button("🔄 Reset"):
+    st.session_state.rules = DEFAULT_RULES.copy()
+    save_rules(st.session_state.rules)
+    st.rerun()
+
+# ---------------- SORT FUNCTION ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -46,13 +85,21 @@ def natural_key(wire):
         found = re.findall(r"\d+", text)
         return [int(x) for x in found] if found else []
 
-    # detect prefix group
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
 
             n = nums(wire)
 
-            # X / Y special handling
+            # ---------------- SPECIAL GROUP FIX ----------------
+            # 24V / S_0V must have BASE first, then numbered versions
+            if prefix in ["24V", "S_0V"]:
+                if wire == prefix:
+                    return (priority, 0, 0)
+                if len(n) > 0:
+                    return (priority, 1, n[0])  # numbered versions AFTER base
+                return (priority, 0, 0)
+
+            # ---------------- X / Y ----------------
             if prefix in ["X", "Y"]:
                 if len(n) >= 2:
                     return (priority, n[0], n[1])
@@ -61,17 +108,18 @@ def natural_key(wire):
                 else:
                     return (priority, 0, 0)
 
-            # normal groups
+            # ---------------- NORMAL GROUPS ----------------
             if len(n) > 0:
                 return (priority, n[0], 0)
 
             return (priority, 0, 0)
 
-    # numbers last
+    # ---------------- NUMBERS LAST ----------------
     if wire.isdigit():
         return (999, int(wire), 0)
 
     return (999, 0, wire)
+
 
 # ---------------- UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
@@ -127,21 +175,12 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SAFE SORT (FINAL FIX) ----------------
+    # ---------------- SAFE SORT ----------------
     result["sort_key"] = result["Wire"].apply(natural_key)
-
-    # IMPORTANT: normalize EVERY key into tuple (guaranteed safe)
-    def safe_key(x):
-        k = x["sort_key"]
-        if isinstance(k, tuple):
-            return k
-        if isinstance(k, list):
-            return tuple(k)
-        return (999, 0, str(k))
 
     sorted_rows = sorted(
         result.to_dict("records"),
-        key=safe_key
+        key=lambda x: x["sort_key"]
     )
 
     result = pd.DataFrame(sorted_rows).drop(columns=["sort_key"])
