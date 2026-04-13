@@ -8,46 +8,50 @@ from streamlit_sortables import sort_items
 
 st.title("Wire & Component Tools")
 
-# ---------------- MODE ----------------
+# =========================================================
+# MODE
+# =========================================================
 mode = st.radio(
     "Select tool",
     ["Wire Marking Counter", "Component Marking Cleaner"]
 )
 
 # =========================================================
-# 🔌 WIRE TOOL
+# RULES (GLOBAL STATE - ALWAYS LOADED)
 # =========================================================
-if mode == "Wire Marking Counter":
+RULES_FILE = "rules.json"
 
-    RULES_FILE = "rules.json"
+DEFAULT_RULES = [
+    "1L",
+    "L",
+    "N",
+    "24V",
+    "0V",
+    "S_0V",
+    "A",
+    "X",
+    "Y"
+]
 
-    DEFAULT_RULES = [
-        "1L",
-        "L",
-        "N",
-        "24V",
-        "0V",
-        "S_0V",
-        "A",
-        "X",
-        "Y"
-    ]
-
-    def load_rules():
-        if os.path.exists(RULES_FILE):
-            with open(RULES_FILE, "r") as f:
-                return json.load(f)
+def load_rules():
+    if os.path.exists(RULES_FILE):
+        with open(RULES_FILE, "r") as f:
+            return json.load(f)
         return DEFAULT_RULES
 
-    def save_rules(rules):
-        with open(RULES_FILE, "w") as f:
-            json.dump(rules, f)
+def save_rules(rules):
+    with open(RULES_FILE, "w") as f:
+        json.dump(rules, f)
 
-    if "rules" not in st.session_state:
-        st.session_state.rules = load_rules()
+if "rules" not in st.session_state:
+    st.session_state.rules = load_rules()
 
-    # ---------------- SIDEBAR ----------------
-    st.sidebar.header("Sorting Rules")
+# =========================================================
+# 🔥 SIDEBAR (ALWAYS EXISTS — BUT ACTIVE ONLY IN WIRE MODE)
+# =========================================================
+st.sidebar.header("Sorting Rules")
+
+if mode == "Wire Marking Counter":
 
     new_rules = sort_items(
         st.session_state.rules,
@@ -58,12 +62,47 @@ if mode == "Wire Marking Counter":
         st.session_state.rules = new_rules
         st.rerun()
 
+    st.sidebar.write("Current order:")
     st.sidebar.write(st.session_state.rules)
 
-    # ---------------- PRIORITY MAP ----------------
+    # ADD RULE
+    new_rule = st.sidebar.text_input("Add rule")
+
+    if st.sidebar.button("➕ Add rule"):
+        if new_rule:
+            r = new_rule.upper()
+            if r not in st.session_state.rules:
+                st.session_state.rules.append(r)
+                st.rerun()
+
+    # REMOVE RULE
+    remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
+
+    if st.sidebar.button("❌ Delete rule"):
+        st.session_state.rules.remove(remove_rule)
+        st.rerun()
+
+    # SAVE
+    if st.sidebar.button("💾 Save rules"):
+        save_rules(st.session_state.rules)
+        st.success("Rules saved!")
+
+    # RESET
+    if st.sidebar.button("🔄 Reset rules"):
+        st.session_state.rules = DEFAULT_RULES.copy()
+        save_rules(st.session_state.rules)
+        st.rerun()
+
+else:
+    st.sidebar.info("Sorting rules available only in Wire tool")
+
+# =========================================================
+# 🔌 WIRE TOOL
+# =========================================================
+if mode == "Wire Marking Counter":
+
     priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
 
-    # ---------------- SORT FUNCTION ----------------
     def natural_key(wire):
         wire = str(wire).strip().upper()
 
@@ -100,7 +139,6 @@ if mode == "Wire Marking Counter":
 
         return (999, 0, wire)
 
-    # ---------------- UPLOAD ----------------
     uploaded_file = st.file_uploader("Upload Wire Excel", type=["xlsx", "xls"])
 
     if uploaded_file:
@@ -158,7 +196,7 @@ if mode == "Wire Marking Counter":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False, header=False, sheet_name="Laidų žymėjimai")
+            result.to_excel(writer, index=False, sheet_name="Laidų žymėjimai")
 
         output.seek(0)
 
@@ -172,7 +210,7 @@ if mode == "Wire Marking Counter":
         )
 
 # =========================================================
-# 🧩 COMPONENT TOOL (UNIQUE MARKINGS ONLY)
+# 🧩 COMPONENT TOOL
 # =========================================================
 if mode == "Component Marking Cleaner":
 
@@ -211,12 +249,12 @@ if mode == "Component Marking Cleaner":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False, header=False, sheet_name="Komponentų žymėjimai")
+            result.to_excel(writer, index=False, sheet_name="Komponentų žymėjimai")
 
         output.seek(0)
 
         base = os.path.splitext(uploaded_file.name)[0].split()[0]
-        
+
         st.download_button(
             "Download Unique Markings",
             output,
