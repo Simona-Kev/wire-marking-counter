@@ -64,19 +64,34 @@ st.sidebar.header("Sorting Rules")
 
 if mode == "Wire Marking Counter":
 
-    new_rules = sort_items(
+    # ---------------------------
+    # SAFE INITIALIZATION
+    # ---------------------------
+    if "rules" not in st.session_state:
+        st.session_state.rules = load_rules()
+
+    # ---------------------------
+    # DRAG & DROP (STABLE VERSION)
+    # ---------------------------
+    updated_rules = sort_items(
         st.session_state.rules,
-        direction="vertical"
+        direction="vertical",
+        key="rules_sorter"
     )
 
-    if new_rules != st.session_state.rules:
-        st.session_state.rules = new_rules
-        st.session_state.rules_version += 1
-        st.rerun()
+    # ONLY UPDATE IF REAL CHANGE HAPPENS
+    if updated_rules and updated_rules != st.session_state.rules:
+        st.session_state.rules = updated_rules
 
+    # ---------------------------
+    # DISPLAY
+    # ---------------------------
     st.sidebar.write("Current order:")
     st.sidebar.write(st.session_state.rules)
 
+    # ---------------------------
+    # ADD RULE
+    # ---------------------------
     new_rule = st.sidebar.text_input("Add rule")
 
     if st.sidebar.button("➕ Add rule"):
@@ -84,24 +99,29 @@ if mode == "Wire Marking Counter":
             r = new_rule.upper()
             if r not in st.session_state.rules:
                 st.session_state.rules.append(r)
-                st.session_state.rules_version += 1
-                st.rerun()
 
+    # ---------------------------
+    # REMOVE RULE
+    # ---------------------------
     remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
 
     if st.sidebar.button("❌ Delete rule"):
-        st.session_state.rules.remove(remove_rule)
-        st.session_state.rules_version += 1
-        st.rerun()
+        if remove_rule in st.session_state.rules:
+            st.session_state.rules.remove(remove_rule)
 
+    # ---------------------------
+    # SAVE
+    # ---------------------------
     if st.sidebar.button("💾 Save rules"):
         save_rules(st.session_state.rules)
         st.success("Saved!")
 
+    # ---------------------------
+    # RESET
+    # ---------------------------
     if st.sidebar.button("🔄 Reset rules"):
         st.session_state.rules = DEFAULT_RULES.copy()
         save_rules(st.session_state.rules)
-        st.session_state.rules_version += 1
         st.rerun()
 
 else:
