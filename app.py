@@ -253,7 +253,8 @@ if mode == "Wire Marking Counter":
         st.download_button(
             "Download Excel",
             output,
-            file_name=f"{base} laidų žymėjimai.xlsx",
+            project = get_project_code(uploaded_file.name)
+            file_name=f"{project} laidų žymėjimai.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
@@ -306,6 +307,7 @@ if mode == "Component Marking Cleaner":
         st.download_button(
             "Download Unique Markings",
             output,
-            file_name=f"{base} komponentų žymėjimai.xlsx",
+            project = get_project_code(uploaded_file.name)
+            file_name=f"{project} komponentų žymėjimai.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
