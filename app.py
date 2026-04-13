@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Stable Industrial Sorting)")
+st.title("Wire Marking Counter (Fully Stable Sorting)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -85,18 +85,14 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return int(nums[0]) if nums else 0
 
-    # ---------------- NUMBERS ALWAYS LAST ----------------
+    # ---------------- NUMBERS LAST ----------------
     if wire.isdigit():
         return (999, 0, int(wire))
 
     # ---------------- PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
-
-            num = extract_number(wire)
-
-            # stable fallback
-            return (priority, num, wire)
+            return (priority, extract_number(wire), wire)
 
     return (999, 0, wire)
 
@@ -158,13 +154,15 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SAFE SORT ----------------
+    # ---------------- SAFE PYTHON SORT (NO PANDAS BUGS) ----------------
     result["sort_key"] = result["Wire"].apply(natural_key)
 
-    result = result.sort_values(
-        "sort_key",
-        kind="stable"
-    ).drop(columns=["sort_key"])
+    sorted_rows = sorted(
+        result.to_dict("records"),
+        key=lambda x: x["sort_key"]
+    )
+
+    result = pd.DataFrame(sorted_rows).drop(columns=["sort_key"])
 
     st.subheader("Result")
     st.dataframe(result)
