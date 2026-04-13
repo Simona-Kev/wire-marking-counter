@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import io
+import os
 
 st.title("Wire Marking Counter")
 
@@ -7,7 +9,7 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
 
-    # Read Excel safely
+    # ---------------- READ FILE ----------------
     if uploaded_file.name.endswith(".xls"):
         df = pd.read_excel(uploaded_file, engine="xlrd")
     else:
@@ -16,13 +18,13 @@ if uploaded_file:
     st.subheader("Preview")
     st.dataframe(df.head())
 
-    # Clean column names
+    # ---------------- CLEAN COLUMNS ----------------
     df.columns = [str(c).strip() for c in df.columns]
 
     wire_col = "Wireno"
-
     connections = {}
 
+    # ---------------- PROCESS DATA ----------------
     for _, row in df.iterrows():
 
         wire = row[wire_col]
@@ -31,7 +33,7 @@ if uploaded_file:
             continue
 
         wire = str(wire).strip()
-        row_id = row.name  # important for unique missing values
+        row_id = row.name
 
         if wire not in connections:
             connections[wire] = set()
@@ -47,7 +49,6 @@ if uploaded_file:
                 start_conn = str(start_conn).strip()
                 connections[wire].add(f"{start_component}|{start_conn}")
             else:
-                # unique missing marker (prevents collapsing)
                 connections[wire].add(f"{start_component}|MISSING_START_{row_id}")
 
         # ---------------- END SIDE ----------------
@@ -61,7 +62,6 @@ if uploaded_file:
                 end_conn = str(end_conn).strip()
                 connections[wire].add(f"{end_component}|{end_conn}")
             else:
-                # unique missing marker (prevents collapsing)
                 connections[wire].add(f"{end_component}|MISSING_END_{row_id}")
 
     # ---------------- RESULT ----------------
@@ -78,9 +78,23 @@ if uploaded_file:
     st.success(f"Total wires: {len(result)}")
     st.success(f"Total markings needed: {result['Markings'].sum()}")
 
+    # ---------------- DOWNLOAD EXCEL ----------------
+    original_name = uploaded_file.name
+    base_name = os.path.splitext(original_name)[0]
+    project_code = base_name.split()[0]
+
+    download_name = f"{project_code} laidų žymėjimai.xlsx"
+
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        result.to_excel(writer, index=False, sheet_name="Markings")
+
+    output.seek(0)
+
     st.download_button(
-        "Download CSV",
-        result.to_csv(index=False),
-        "wire_markings.csv",
-        "text/csv"
+        "Download Excel",
+        output,
+        file_name=download_name,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
