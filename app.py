@@ -77,7 +77,7 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION (FIXED) ----------------
+# ---------------- SORT FUNCTION (FINAL FIX) ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -85,20 +85,17 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
+    # ---------------- PURE NUMBERS ALWAYS GO LAST ----------------
+    if wire.isdigit():
+        return (999, int(wire))
+
+    # ---------------- PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
-
-            # IMPORTANT FIX: numeric-only wires sort numerically
-            if wire.isdigit():
-                return (priority, int(wire))
-
             return (priority, extract_numbers(wire))
 
-    # fallback numbers (e.g. "1", "2", "10")
-    if wire.isdigit():
-        return (90, int(wire))
-
-    return (99, wire)
+    # fallback (unknown text)
+    return (999, wire)
 
 
 # ---------------- UPLOAD ----------------
