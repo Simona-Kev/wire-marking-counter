@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Fixed NUMBERS Drag System)")
+st.title("Wire Marking Counter (Fixed Sorting + NUMBERS Group)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -24,23 +24,21 @@ DEFAULT_RULES = [
     "NUMBERS"
 ]
 
-# ---------------- LOAD ----------------
+# ---------------- LOAD RULES ----------------
 def load_rules():
     if os.path.exists(RULES_FILE):
         with open(RULES_FILE, "r") as f:
             return json.load(f)
     return DEFAULT_RULES
 
-# ---------------- SAVE ----------------
 def save_rules(rules):
     with open(RULES_FILE, "w") as f:
         json.dump(rules, f)
 
-# ---------------- INIT ----------------
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
-# ---------------- SIDEBAR UI ----------------
+# ---------------- SIDEBAR ----------------
 st.sidebar.header("Sorting Rules (Drag & Drop)")
 
 st.session_state.rules = sort_items(
@@ -48,11 +46,11 @@ st.session_state.rules = sort_items(
     direction="vertical"
 )
 
-st.sidebar.subheader("Current order")
+st.sidebar.write("Current order:")
 st.sidebar.write(st.session_state.rules)
 
-# ---------------- ADD RULE ----------------
-new_rule = st.sidebar.text_input("Add rule (prefix)")
+# Add rule
+new_rule = st.sidebar.text_input("Add new prefix (e.g. PWR, CTRL)")
 
 if st.sidebar.button("➕ Add rule"):
     if new_rule:
@@ -61,14 +59,14 @@ if st.sidebar.button("➕ Add rule"):
             st.session_state.rules.append(new_rule)
             st.rerun()
 
-# ---------------- REMOVE RULE ----------------
+# Remove rule
 remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
 
 if st.sidebar.button("❌ Remove rule"):
     st.session_state.rules.remove(remove_rule)
     st.rerun()
 
-# ---------------- SAVE / RESET ----------------
+# Save / Reset
 if st.sidebar.button("💾 Save rules"):
     save_rules(st.session_state.rules)
     st.sidebar.success("Saved!")
@@ -89,16 +87,16 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
-    is_number = wire.isdigit()
+    # ---------------- NUMBERS GROUP (ONLY HERE) ----------------
+    if wire.isdigit():
+        return (priority_map.get("NUMBERS", 99), int(wire))
 
+    # ---------------- NORMAL PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
+        if prefix == "NUMBERS":
+            continue
 
-        # NUMBERS GROUP (draggable + real numeric capture)
-        if prefix == "NUMBERS" and is_number:
-            return (priority, int(wire))
-
-        # normal prefix matching
-        if prefix != "NUMBERS" and wire.startswith(prefix):
+        if wire.startswith(prefix):
             return (priority, extract_numbers(wire))
 
     return (99, wire)
@@ -129,7 +127,7 @@ if uploaded_file:
         if pd.isna(wire):
             continue
 
-        wire = str(wire).strip()
+        wire = str(wire).strip().upper()
         row_id = row.name
 
         if wire not in connections:
