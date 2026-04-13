@@ -3,7 +3,10 @@ import pandas as pd
 
 st.title("Wire Marking Counter")
 
-uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
+uploaded_file = st.file_uploader(
+    "Upload Excel file",
+    type=["xlsx", "xls"]
+)
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
