@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Stable Sorting Fix)")
+st.title("Wire Marking Counter (Stable Industrial Sorting)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -81,19 +81,24 @@ priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
-    def extract_numbers(text):
+    def extract_number(text):
         nums = re.findall(r"\d+", text)
         return int(nums[0]) if nums else 0
 
-    # numbers always last
+    # ---------------- NUMBERS ALWAYS LAST ----------------
     if wire.isdigit():
-        return (999, int(wire))
+        return (999, 0, int(wire))
 
+    # ---------------- PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
-            return (priority, extract_numbers(wire))
 
-    return (999, wire)
+            num = extract_number(wire)
+
+            # stable fallback
+            return (priority, num, wire)
+
+    return (999, 0, wire)
 
 
 # ---------------- UPLOAD ----------------
@@ -153,13 +158,13 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SAFE SORT (NO CRASH) ----------------
-    result["sort_group"] = result["Wire"].apply(lambda w: natural_key(w)[0])
-    result["sort_value"] = result["Wire"].apply(lambda w: natural_key(w)[1])
+    # ---------------- SAFE SORT ----------------
+    result["sort_key"] = result["Wire"].apply(natural_key)
 
-    result = result.sort_values(by=["sort_group", "sort_value"]).drop(
-        columns=["sort_group", "sort_value"]
-    )
+    result = result.sort_values(
+        "sort_key",
+        kind="stable"
+    ).drop(columns=["sort_key"])
 
     st.subheader("Result")
     st.dataframe(result)
