@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Stable Version)")
+st.title("Wire Marking Counter (Stable Final Version)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -77,36 +77,36 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT KEY (SAFE SIMPLE VERSION) ----------------
+# ---------------- SORT FUNCTION ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
-    def extract_all_numbers(text):
+    def extract_numbers(text):
         nums = re.findall(r"\d+", text)
         return [int(n) for n in nums] if nums else []
 
-    # ---------------- PREFIX MATCH ----------------
+    # ---------------- PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
 
-            nums = extract_all_numbers(wire)
+            nums = extract_numbers(wire)
 
-            # X / Y special handling (multi-number safe)
+            # X / Y special sorting (multi-number safe)
             if prefix in ["X", "Y"]:
                 if len(nums) >= 2:
-                    return (priority, nums[0], nums[1], wire)
+                    return (priority, nums[0], nums[1])
                 elif len(nums) == 1:
-                    return (priority, nums[0], 0, wire)
+                    return (priority, nums[0], 0)
                 else:
-                    return (priority, 0, 0, wire)
+                    return (priority, 0, 0)
 
-            # normal groups (24V, S_0V, A, etc.)
+            # other groups (24V, S_0V, etc.)
             if nums:
                 return (priority, nums[0], wire)
 
             return (priority, 0, wire)
 
-    # ---------------- NUMBERS ONLY (LAST GROUP) ----------------
+    # ---------------- NUMBERS LAST ----------------
     if wire.isdigit():
         return (999, int(wire))
 
@@ -170,9 +170,15 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SAFE SORT (BACK TO SIMPLE PANDAS) ----------------
+    # ---------------- SAFE PYTHON SORT (NO CRASH EVER) ----------------
     result["sort_key"] = result["Wire"].apply(natural_key)
-    result = result.sort_values("sort_key", kind="stable").drop(columns=["sort_key"])
+
+    sorted_rows = sorted(
+        result.to_dict("records"),
+        key=lambda x: x["sort_key"]
+    )
+
+    result = pd.DataFrame(sorted_rows).drop(columns=["sort_key"])
 
     st.subheader("Result")
     st.dataframe(result)
