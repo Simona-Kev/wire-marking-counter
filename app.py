@@ -24,18 +24,23 @@ else:
 
     connections = {}
 
-    for _, row in df.iterrows():
-        wire = row[wire_col]
+for _, row in df.iterrows():
+    wire = row[wire_col]
 
-        if wire not in connections:
-            connections[wire] = set()
+    if wire not in connections:
+        connections[wire] = set()
 
-        for col in connection_cols:
-            value = row[col]
+    # Process columns in pairs (Name + C name)
+    cols = list(connection_cols)
 
-            if pd.notna(value):  # ignore empty cells
-                connections[wire].add(str(value).strip())
+    for i in range(0, len(cols), 2):
+        val1 = row[cols[i]]
+        val2 = row[cols[i+1]] if i+1 < len(cols) else None
 
+        if pd.notna(val1) or pd.notna(val2):
+            # Treat pair as one connection
+            pair = f"{val1}-{val2}"
+            connections[wire].add(pair)
     # Build result table
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(points)}
