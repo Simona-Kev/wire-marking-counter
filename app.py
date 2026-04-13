@@ -30,9 +30,18 @@ def natural_key(wire):
     if wire.startswith("24V"):
         return (4, extract_numbers(wire))
 
-    # 0V / S_0V
-    if wire.startswith("0V") or wire.startswith("S_0V"):
-        return (5, extract_numbers(wire))
+    # 0V (always first in this group)
+if wire == "0V":
+    return (5, 0)
+
+# S_0V base (without numbers)
+if wire == "S_0V":
+    return (6, 0)
+
+# S_0V with numbers (S_0V1, S_0V2...)
+if wire.startswith("S_0V"):
+    nums = re.findall(r"\d+", wire)
+    return (7, int(nums[0]) if nums else 0)
 
     # pure numbers
     if wire.isdigit():
