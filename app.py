@@ -9,7 +9,7 @@ from streamlit_sortables import sort_items
 st.title("Wire & Component Tools")
 
 # =========================================================
-# PROJECT CODE HELPER (NEW FIX)
+# PROJECT CODE HELPER
 # =========================================================
 def get_project_code(filename: str):
     base = os.path.splitext(filename)[0].strip()
@@ -30,15 +30,7 @@ mode = st.radio(
 RULES_FILE = "rules.json"
 
 DEFAULT_RULES = [
-    "1L",
-    "L",
-    "N",
-    "24V",
-    "0V",
-    "S_0V",
-    "A",
-    "X",
-    "Y"
+    "1L", "L", "N", "24V", "0V", "S_0V", "A", "X", "Y"
 ]
 
 def load_rules():
@@ -54,9 +46,6 @@ def save_rules(rules):
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
-if "rules_version" not in st.session_state:
-    st.session_state.rules_version = 0
-
 # =========================================================
 # SIDEBAR (WIRE ONLY)
 # =========================================================
@@ -64,34 +53,19 @@ st.sidebar.header("Sorting Rules")
 
 if mode == "Wire Marking Counter":
 
-    # ---------------------------
-    # SAFE INITIALIZATION
-    # ---------------------------
-    if "rules" not in st.session_state:
-        st.session_state.rules = load_rules()
-
-    # ---------------------------
-    # DRAG & DROP (STABLE VERSION)
-    # ---------------------------
     updated_rules = sort_items(
         st.session_state.rules,
         direction="vertical",
         key="rules_sorter"
     )
 
-    # ONLY UPDATE IF REAL CHANGE HAPPENS
     if updated_rules and updated_rules != st.session_state.rules:
         st.session_state.rules = updated_rules
 
-    # ---------------------------
-    # DISPLAY
-    # ---------------------------
     st.sidebar.write("Current order:")
     st.sidebar.write(st.session_state.rules)
 
-    # ---------------------------
-    # ADD RULE
-    # ---------------------------
+    # ADD
     new_rule = st.sidebar.text_input("Add rule")
 
     if st.sidebar.button("➕ Add rule"):
@@ -100,25 +74,19 @@ if mode == "Wire Marking Counter":
             if r not in st.session_state.rules:
                 st.session_state.rules.append(r)
 
-    # ---------------------------
-    # REMOVE RULE
-    # ---------------------------
+    # REMOVE
     remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
 
     if st.sidebar.button("❌ Delete rule"):
         if remove_rule in st.session_state.rules:
             st.session_state.rules.remove(remove_rule)
 
-    # ---------------------------
     # SAVE
-    # ---------------------------
     if st.sidebar.button("💾 Save rules"):
         save_rules(st.session_state.rules)
         st.success("Saved!")
 
-    # ---------------------------
     # RESET
-    # ---------------------------
     if st.sidebar.button("🔄 Reset rules"):
         st.session_state.rules = DEFAULT_RULES.copy()
         save_rules(st.session_state.rules)
@@ -139,13 +107,12 @@ def natural_key(wire):
     wire = str(wire).strip().upper()
 
     def nums(text):
-        return [int(x) for x in re.findall(r"\d+", text)] if re.findall(r"\d+", text) else []
+        return [int(x) for x in re.findall(r"\d+", text)]
 
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
 
             suffix = wire[len(prefix):]
-            n = nums(suffix)
 
             if prefix in ["24V", "S_0V"]:
 
@@ -158,18 +125,21 @@ def natural_key(wire):
                 if suffix.isdigit():
                     return (priority, int(suffix))
 
+                n = nums(suffix)
                 if n:
                     return (priority, n[0])
 
                 return (priority, 999)
 
             if prefix in ["X", "Y"]:
+                n = nums(suffix)
                 if len(n) >= 2:
                     return (priority, n[0], n[1])
                 elif len(n) == 1:
                     return (priority, n[0], 0)
                 return (priority, 0, 0)
 
+            n = nums(suffix)
             if n:
                 return (priority, n[0], 0)
 
@@ -181,10 +151,13 @@ def natural_key(wire):
     return (999, 0, wire)
 
 # =========================================================
-# DATA STORAGE
+# SESSION STORAGE
 # =========================================================
 if "wire_df" not in st.session_state:
     st.session_state.wire_df = None
+
+if "wire_filename" not in st.session_state:
+    st.session_state.wire_filename = None
 
 # =========================================================
 # WIRE TOOL
@@ -198,6 +171,7 @@ if mode == "Wire Marking Counter":
             uploaded_file,
             engine="xlrd" if uploaded_file.name.endswith(".xls") else "openpyxl"
         )
+        st.session_state.wire_filename = uploaded_file.name
 
     df = st.session_state.wire_df
 
@@ -205,12 +179,11 @@ if mode == "Wire Marking Counter":
 
         df.columns = [str(c).strip() for c in df.columns]
 
-        wire_col = "Wireno"
         connections = {}
 
         for _, row in df.iterrows():
 
-            wire = row[wire_col]
+            wire = row["Wireno"]
             if pd.isna(wire):
                 continue
 
@@ -259,7 +232,9 @@ if mode == "Wire Marking Counter":
 
         output.seek(0)
 
-        project = get_project_code(uploaded_file.name)
+        # ✅ SAFE filename usage
+        filename = st.session_state.wire_filename or "output.xlsx"
+        project = get_project_code(filename)
 
         st.download_button(
             "Download Excel",
@@ -272,8 +247,6 @@ if mode == "Wire Marking Counter":
 # COMPONENT TOOL
 # =========================================================
 if mode == "Component Marking Cleaner":
-
-    st.subheader("Component Marking Cleaner")
 
     uploaded_file = st.file_uploader(
         "Upload Component Excel",
