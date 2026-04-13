@@ -7,7 +7,6 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
 
-    # Read file
     if uploaded_file.name.endswith(".xls"):
         df = pd.read_excel(uploaded_file, engine="xlrd")
     else:
@@ -16,20 +15,10 @@ if uploaded_file:
     st.subheader("Preview")
     st.dataframe(df.head())
 
-    # Wire column = first column
-    wire_col = df.columns[0]
-
-    # CLEAN column names (important fix!)
+    # Clean column names
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Find ALL "Name" columns (case-insensitive)
-    name_cols = [col for col in df.columns if str(col).strip().lower() == "name"]
-
-    st.write("Detected Name columns:", name_cols)
-
-    if not name_cols:
-        st.error("No 'Name' columns found.")
-        st.stop()
+    wire_col = "Wireno"
 
     connections = {}
 
@@ -44,13 +33,23 @@ if uploaded_file:
         if wire not in connections:
             connections[wire] = set()
 
-        for col in name_cols:
-            value = row[col]
+        # START side (B + C)
+        start_component = row["Name"]
+        start_conn = row["C.name"]
 
-            if pd.notna(value):
-                val = str(value).strip()
-                if val:
-                    connections[wire].add(val)
+        if pd.notna(start_component) or pd.notna(start_conn):
+            connections[wire].add(
+                f"{str(start_component).strip()}|{str(start_conn).strip()}"
+            )
+
+        # END side (D + E)
+        end_component = row["Name.1"] if "Name.1" in df.columns else row["Name"]
+        end_conn = row["C.name.1"] if "C.name.1" in df.columns else row["C.name"]
+
+        if pd.notna(end_component) or pd.notna(end_conn):
+            connections[wire].add(
+                f"{str(end_component).strip()}|{str(end_conn).strip()}"
+            )
 
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(values)}
