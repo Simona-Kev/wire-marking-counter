@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Fixed Sorting + NUMBERS Group)")
+st.title("Wire Marking Counter (Fixed Sorting + Drag Rules)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -20,11 +20,9 @@ DEFAULT_RULES = [
     "S_0V",
     "A",
     "X",
-    "Y",
-    "NUMBERS"
+    "Y"
 ]
 
-# ---------------- LOAD RULES ----------------
 def load_rules():
     if os.path.exists(RULES_FILE):
         with open(RULES_FILE, "r") as f:
@@ -79,7 +77,7 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION (FINAL FIX) ----------------
+# ---------------- SORT FUNCTION (FIXED) ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -87,17 +85,18 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
-    # ---------------- NUMBERS GROUP (ONLY HERE) ----------------
-    if wire.isdigit():
-        return (priority_map.get("NUMBERS", 99), int(wire))
-
-    # ---------------- NORMAL PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
-        if prefix == "NUMBERS":
-            continue
-
         if wire.startswith(prefix):
+
+            # IMPORTANT FIX: numeric-only wires sort numerically
+            if wire.isdigit():
+                return (priority, int(wire))
+
             return (priority, extract_numbers(wire))
+
+    # fallback numbers (e.g. "1", "2", "10")
+    if wire.isdigit():
+        return (90, int(wire))
 
     return (99, wire)
 
@@ -127,7 +126,7 @@ if uploaded_file:
         if pd.isna(wire):
             continue
 
-        wire = str(wire).strip().upper()
+        wire = str(wire).strip()
         row_id = row.name
 
         if wire not in connections:
@@ -178,7 +177,7 @@ if uploaded_file:
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        result.to_excel(writer, index=False, header=False, sheet_name="Markings")
+        result.to_excel(writer, index=False, sheet_name="Markings")
 
     output.seek(0)
 
