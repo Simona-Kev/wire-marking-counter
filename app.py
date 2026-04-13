@@ -81,15 +81,36 @@ priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
-    def extract_number(text):
+    def extract_all_numbers(text):
         nums = re.findall(r"\d+", text)
-        return int(nums[0]) if nums else 0
+        return [int(n) for n in nums] if nums else []
 
+    # ---------------- PREFIX MATCH ----------------
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
-            return (priority, extract_number(wire), wire)
 
-    return (999, 0, wire)
+            nums = extract_all_numbers(wire)
+
+            # X / Y special handling (multi-number safe)
+            if prefix in ["X", "Y"]:
+                if len(nums) >= 2:
+                    return (priority, nums[0], nums[1], wire)
+                elif len(nums) == 1:
+                    return (priority, nums[0], 0, wire)
+                else:
+                    return (priority, 0, 0, wire)
+
+            # normal groups (24V, S_0V, A, etc.)
+            if nums:
+                return (priority, nums[0], wire)
+
+            return (priority, 0, wire)
+
+    # ---------------- NUMBERS ONLY (LAST GROUP) ----------------
+    if wire.isdigit():
+        return (999, int(wire))
+
+    return (999, wire)
 
 
 # ---------------- UPLOAD ----------------
