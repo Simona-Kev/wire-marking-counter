@@ -7,6 +7,7 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
 
+    # Read Excel safely
     if uploaded_file.name.endswith(".xls"):
         df = pd.read_excel(uploaded_file, engine="xlrd")
     else:
@@ -30,11 +31,12 @@ if uploaded_file:
             continue
 
         wire = str(wire).strip()
+        row_id = row.name  # important for unique missing values
 
         if wire not in connections:
             connections[wire] = set()
 
-        # START side
+        # ---------------- START SIDE ----------------
         start_component = row["Name"]
         start_conn = row["C.name"]
 
@@ -45,9 +47,10 @@ if uploaded_file:
                 start_conn = str(start_conn).strip()
                 connections[wire].add(f"{start_component}|{start_conn}")
             else:
-                connections[wire].add(f"{start_component}|NO_CONN")
+                # unique missing marker (prevents collapsing)
+                connections[wire].add(f"{start_component}|MISSING_START_{row_id}")
 
-        # END side
+        # ---------------- END SIDE ----------------
         end_component = row["Name.1"] if "Name.1" in df.columns else row["Name"]
         end_conn = row["C.name.1"] if "C.name.1" in df.columns else row["C.name"]
 
@@ -58,8 +61,10 @@ if uploaded_file:
                 end_conn = str(end_conn).strip()
                 connections[wire].add(f"{end_component}|{end_conn}")
             else:
-                connections[wire].add(f"{end_component}|NO_CONN")
+                # unique missing marker (prevents collapsing)
+                connections[wire].add(f"{end_component}|MISSING_END_{row_id}")
 
+    # ---------------- RESULT ----------------
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(values)}
         for wire, values in connections.items()
