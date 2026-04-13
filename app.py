@@ -91,7 +91,7 @@ if mode == "Wire Marking Counter":
     st.session_state.rules = DEFAULT_RULES.copy()
     save_rules(st.session_state.rules)
 
-    # 🔥 force clean UI refresh
+    # force sort_items to refresh
     st.session_state["rules_sorter"] = DEFAULT_RULES.copy()
 
     st.rerun()
