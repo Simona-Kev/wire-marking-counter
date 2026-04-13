@@ -7,7 +7,10 @@ import json
 from streamlit_sortables import sort_items
 
 st.title("Wire Marking Counter (Fully Fixed)")
-
+mode = st.radio(
+    "Select tool",
+    ["Wire Markings", "Component Markings"]
+)
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
 
@@ -202,7 +205,7 @@ if uploaded_file:
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        result.to_excel(writer, index=False)
+        result.to_excel(writer, index=False, header=False, sheet_name="Laidų žymėjimai")
 
     output.seek(0)
 
@@ -212,3 +215,55 @@ if uploaded_file:
         file_name=f"{base} laidų žymėjimai.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+if mode == "Component Marking Cleaner":
+
+    st.subheader("Component Marking Cleaner")
+
+    uploaded_file = st.file_uploader(
+        "Upload Component Excel file",
+        type=["xlsx", "xls"],
+        key="comp_file"
+    )
+
+    if uploaded_file:
+
+        if uploaded_file.name.endswith(".xls"):
+            df = pd.read_excel(uploaded_file, engine="xlrd")
+        else:
+            df = pd.read_excel(uploaded_file, engine="openpyxl")
+
+        df.columns = [str(c).strip() for c in df.columns]
+
+        if "Name" not in df.columns:
+            st.error("Column 'Name' not found in file")
+        else:
+
+            # ---------------- CLEAN UNIQUE VALUES ----------------
+            values = df["Name"].dropna().astype(str).str.strip()
+
+            unique_values = sorted(set(values))
+
+            result = pd.DataFrame({
+                "Marking": unique_values
+            })
+
+            st.subheader("Unique Markings")
+            st.dataframe(result)
+
+            st.success(f"Total unique markings: {len(result)}")
+
+            # ---------------- DOWNLOAD ----------------
+            output = io.BytesIO()
+
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                result.to_excel(writer, index=False, header=False, sheet_name="Komponentų žymėjimai")
+
+            output.seek(0)
+
+            st.download_button(
+                "Download Unique Markings",
+                output,
+                file_name="component_unique_markings.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
