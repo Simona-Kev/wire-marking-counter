@@ -23,33 +23,42 @@ if uploaded_file:
     connections = {}
 
     for _, row in df.iterrows():
-        wire = row[wire_col]
+    wire = row[wire_col]
 
-        if pd.isna(wire):
-            continue
+    if pd.isna(wire):
+        continue
 
-        wire = str(wire).strip()
+    wire = str(wire).strip()
 
-        if wire not in connections:
-            connections[wire] = set()
+    if wire not in connections:
+        connections[wire] = set()
 
-        # START side (B + C)
-        start_component = row["Name"]
-        start_conn = row["C.name"]
+    # START side
+    start_component = row["Name"]
+    start_conn = row["C.name"]
 
-        if pd.notna(start_component) or pd.notna(start_conn):
-            connections[wire].add(
-                f"{str(start_component).strip()}|{str(start_conn).strip()}"
-            )
+    if pd.notna(start_component):
+        start_component = str(start_component).strip()
 
-        # END side (D + E)
-        end_component = row["Name.1"] if "Name.1" in df.columns else row["Name"]
-        end_conn = row["C.name.1"] if "C.name.1" in df.columns else row["C.name"]
+        if pd.notna(start_conn):
+            start_conn = str(start_conn).strip()
+            connections[wire].add(f"{start_component}|{start_conn}")
+        else:
+            # missing connection point → still count component
+            connections[wire].add(f"{start_component}|NO_CONN")
 
-        if pd.notna(end_component) or pd.notna(end_conn):
-            connections[wire].add(
-                f"{str(end_component).strip()}|{str(end_conn).strip()}"
-            )
+    # END side
+    end_component = row["Name.1"] if "Name.1" in df.columns else row["Name"]
+    end_conn = row["C.name.1"] if "C.name.1" in df.columns else row["C.name"]
+
+    if pd.notna(end_component):
+        end_component = str(end_component).strip()
+
+        if pd.notna(end_conn):
+            end_conn = str(end_conn).strip()
+            connections[wire].add(f"{end_component}|{end_conn}")
+        else:
+            connections[wire].add(f"{end_component}|NO_CONN")
 
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(values)}
