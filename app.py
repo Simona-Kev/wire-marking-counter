@@ -1,64 +1,67 @@
 import streamlit as st
 import pandas as pd
 
-st.title("Laidų žymėjimų skaičiuoklė")
+st.title("Wire Marking Counter")
 
-uploaded_file = st.file_uploader(
-    "Įkelkite excel failą:",
-    type=["xlsx", "xls"]
-)
+uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
-if uploaded_file.name.endswith(".xls"):
-    df = pd.read_excel(uploaded_file, engine="xlrd")
-else:
-    df = pd.read_excel(uploaded_file, engine="openpyxl")
+if uploaded_file:
+
+    # Read Excel safely (xlsx + xls)
+    if uploaded_file.name.endswith(".xls"):
+        df = pd.read_excel(uploaded_file, engine="xlrd")
+    else:
+        df = pd.read_excel(uploaded_file, engine="openpyxl")
 
     st.subheader("Preview")
-    st.write(df)
+    st.write(df.head())
 
-    # First column = wire number
+    # First column = wire ID
     wire_col = df.columns[0]
 
-    # All other columns = connection points
+    # Only columns called "Name"
+    name_cols = [col for col in df.columns if col.strip() == "Name"]
+
+    if not name_cols:
+        st.error("No column named 'Name' found in file.")
+        st.stop()
+
     connections = {}
 
-# only keep columns called "Name"
-name_cols = [col for col in df.columns if col.strip() == "Name"]
+    for _, row in df.iterrows():
+        wire = row[wire_col]
 
-for _, row in df.iterrows():
-    wire = row[df.columns[0]]  # first column = wire number
+        if pd.isna(wire):
+            continue
 
-    if wire not in connections:
-        connections[wire] = set()
+        wire = str(wire).strip()
 
-    for col in name_cols:
-        value = row[col]
+        if wire not in connections:
+            connections[wire] = set()
 
-        if pd.notna(value):
-            connections[wire].add(str(value).strip())
+        for col in name_cols:
+            value = row[col]
 
-# build result
-result = pd.DataFrame([
-    {"Wire": wire, "Markings": len(values)}
-    for wire, values in connections.items()
-])
+            if pd.notna(value):
+                connections[wire].add(str(value).strip())
 
-st.write(result)
     # Build result table
     result = pd.DataFrame([
-        {"Wire": wire, "Markings": len(points)}
-        for wire, points in connections.items()
+        {"Wire": wire, "Markings": len(values)}
+        for wire, values in connections.items()
     ])
 
+    result = result.sort_values("Wire")
+
     st.subheader("Result")
-    st.write(result)
+    st.dataframe(result)
 
-    total = result["Markings"].sum()
-    st.success(f"Total markings needed: {total}")
+    st.success(f"Total wires: {len(result)}")
+    st.success(f"Total markings needed: {result['Markings'].sum()}")
 
-    # Download button
+    # Download
     st.download_button(
-        "Download results",
+        "Download CSV",
         result.to_csv(index=False),
         "wire_markings.csv",
         "text/csv"
