@@ -86,15 +86,15 @@ if mode == "Wire Marking Counter":
         save_rules(st.session_state.rules)
         st.success("Saved!")
 
-    # RESET
+    # RESET ✅ FIXED
     if st.sidebar.button("🔄 Reset rules"):
-    st.session_state.rules = DEFAULT_RULES.copy()
-    save_rules(st.session_state.rules)
+        st.session_state.rules = DEFAULT_RULES.copy()
+        save_rules(st.session_state.rules)
 
-    # force sort_items to refresh
-    st.session_state["rules_sorter"] = DEFAULT_RULES.copy()
+        # force refresh of drag component
+        st.session_state["rules_sorter"] = DEFAULT_RULES.copy()
 
-    st.rerun()
+        st.rerun()
 
 else:
     st.sidebar.info("Rules only available in Wire tool")
@@ -232,11 +232,15 @@ if mode == "Wire Marking Counter":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False, header=False, sheet_name="Laidų žymėjimai")
+            result.to_excel(
+                writer,
+                index=False,
+                header=False,
+                sheet_name="Laidų žymėjimai"
+            )
 
         output.seek(0)
 
-        # ✅ SAFE filename usage
         filename = st.session_state.wire_filename or "output.xlsx"
         project = get_project_code(filename)
 
@@ -283,7 +287,12 @@ if mode == "Component Marking Cleaner":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(writer, index=False, header=False, sheet_name="Komponentų žymėjimai")
+            result.to_excel(
+                writer,
+                index=False,
+                header=False,
+                sheet_name="Komponentų žymėjimai"
+            )
 
         output.seek(0)
 
