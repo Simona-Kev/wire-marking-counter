@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Fully Stable Sorting)")
+st.title("Wire Marking Counter (Stable Version)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -48,7 +48,7 @@ st.sidebar.write("Current order:")
 st.sidebar.write(st.session_state.rules)
 
 # Add rule
-new_rule = st.sidebar.text_input("Add new prefix (e.g. PWR, CTRL)")
+new_rule = st.sidebar.text_input("Add new prefix")
 
 if st.sidebar.button("➕ Add rule"):
     if new_rule:
@@ -77,7 +77,7 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION ----------------
+# ---------------- SORT KEY (SAFE SIMPLE VERSION) ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -85,11 +85,6 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return int(nums[0]) if nums else 0
 
-    # ---------------- NUMBERS LAST ----------------
-    if wire.isdigit():
-        return (999, 0, int(wire))
-
-    # ---------------- PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
             return (priority, extract_number(wire), wire)
@@ -154,15 +149,9 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SAFE PYTHON SORT (NO PANDAS BUGS) ----------------
+    # ---------------- SAFE SORT (BACK TO SIMPLE PANDAS) ----------------
     result["sort_key"] = result["Wire"].apply(natural_key)
-
-    sorted_rows = sorted(
-        result.to_dict("records"),
-        key=lambda x: x["sort_key"]
-    )
-
-    result = pd.DataFrame(sorted_rows).drop(columns=["sort_key"])
+    result = result.sort_values("sort_key", kind="stable").drop(columns=["sort_key"])
 
     st.subheader("Result")
     st.dataframe(result)
