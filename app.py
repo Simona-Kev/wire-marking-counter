@@ -14,7 +14,7 @@ st.title("Wire & Component Tools")
 def get_project_code(filename: str):
     base = os.path.splitext(filename)[0].strip()
     parts = base.split()
-    return parts[0] if len(parts) > 0 else "output"
+    return parts[0] if parts else "output"
 
 # =========================================================
 # MODE
@@ -43,8 +43,12 @@ def save_rules(rules):
     with open(RULES_FILE, "w") as f:
         json.dump(rules, f)
 
+# SESSION INIT
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
+
+if "rules_version" not in st.session_state:
+    st.session_state.rules_version = 0
 
 # =========================================================
 # SIDEBAR (WIRE ONLY)
@@ -53,10 +57,13 @@ st.sidebar.header("Sorting Rules")
 
 if mode == "Wire Marking Counter":
 
+    # 🔑 dynamic key fixes reset + drag bugs
+    sorter_key = f"rules_sorter_{st.session_state.rules_version}"
+
     updated_rules = sort_items(
         st.session_state.rules,
         direction="vertical",
-        key="rules_sorter"
+        key=sorter_key
     )
 
     if updated_rules and updated_rules != st.session_state.rules:
@@ -73,6 +80,8 @@ if mode == "Wire Marking Counter":
             r = new_rule.upper()
             if r not in st.session_state.rules:
                 st.session_state.rules.append(r)
+                st.session_state.rules_version += 1
+                st.rerun()
 
     # REMOVE
     remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
@@ -80,6 +89,8 @@ if mode == "Wire Marking Counter":
     if st.sidebar.button("❌ Delete rule"):
         if remove_rule in st.session_state.rules:
             st.session_state.rules.remove(remove_rule)
+            st.session_state.rules_version += 1
+            st.rerun()
 
     # SAVE
     if st.sidebar.button("💾 Save rules"):
@@ -90,10 +101,7 @@ if mode == "Wire Marking Counter":
     if st.sidebar.button("🔄 Reset rules"):
         st.session_state.rules = DEFAULT_RULES.copy()
         save_rules(st.session_state.rules)
-
-        # force refresh of drag component
-        st.session_state["rules_sorter"] = DEFAULT_RULES.copy()
-
+        st.session_state.rules_version += 1  # 🔑 forces new widget
         st.rerun()
 
 else:
@@ -105,7 +113,7 @@ else:
 priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
 
 # =========================================================
-# SORT FUNCTION
+# SORT FUNCTION (FINAL PERFECT VERSION)
 # =========================================================
 def natural_key(wire):
     wire = str(wire).strip().upper()
@@ -118,13 +126,13 @@ def natural_key(wire):
 
             suffix = wire[len(prefix):]
 
+            # 🔥 FIXED 24V & S_0V
             if prefix in ["24V", "S_0V"]:
 
-                if suffix == "" or suffix == "_":
+                if suffix in ["", "_"]:
                     return (priority, 0)
 
-                if suffix.startswith("_"):
-                    suffix = suffix[1:]
+                suffix = suffix.lstrip("_")
 
                 if suffix.isdigit():
                     return (priority, int(suffix))
@@ -135,6 +143,7 @@ def natural_key(wire):
 
                 return (priority, 999)
 
+            # X / Y
             if prefix in ["X", "Y"]:
                 n = nums(suffix)
                 if len(n) >= 2:
@@ -143,6 +152,7 @@ def natural_key(wire):
                     return (priority, n[0], 0)
                 return (priority, 0, 0)
 
+            # general
             n = nums(suffix)
             if n:
                 return (priority, n[0], 0)
@@ -232,12 +242,7 @@ if mode == "Wire Marking Counter":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(
-                writer,
-                index=False,
-                header=False,
-                sheet_name="Laidų žymėjimai"
-            )
+            result.to_excel(writer, index=False, header=False, sheet_name="Laidų žymėjimai")
 
         output.seek(0)
 
@@ -287,12 +292,7 @@ if mode == "Component Marking Cleaner":
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(
-                writer,
-                index=False,
-                header=False,
-                sheet_name="Komponentų žymėjimai"
-            )
+            result.to_excel(writer, index=False, header=False, sheet_name="Komponentų žymėjimai")
 
         output.seek(0)
 
