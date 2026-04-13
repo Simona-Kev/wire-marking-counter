@@ -179,7 +179,7 @@ if uploaded_file:
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        result.to_excel(writer, index=False, sheet_name="Markings")
+        result.to_excel(writer, index=False, header=False, sheet_name="Markings")
 
     output.seek(0)
 
