@@ -2,9 +2,59 @@ import streamlit as st
 import pandas as pd
 import io
 import os
+import re
 
 st.title("Wire Marking Counter")
 
+# ---------------- NATURAL SORT FUNCTION ----------------
+def natural_key(wire):
+    wire = str(wire).strip().upper()
+
+    def extract_numbers(text):
+        nums = re.findall(r"\d+", text)
+        return tuple(map(int, nums)) if nums else (0,)
+
+    # 1L group
+    if wire.startswith("1L"):
+        return (1, extract_numbers(wire))
+
+    # L group
+    if wire.startswith("L") and not wire.startswith("1L"):
+        return (2, extract_numbers(wire))
+
+    # N group
+    if wire.startswith("N"):
+        return (3, extract_numbers(wire))
+
+    # 24V group
+    if wire.startswith("24V"):
+        return (4, extract_numbers(wire))
+
+    # 0V / S_0V
+    if wire.startswith("0V") or wire.startswith("S_0V"):
+        return (5, extract_numbers(wire))
+
+    # pure numbers
+    if wire.isdigit():
+        return (6, int(wire))
+
+    # A group
+    if wire.startswith("A"):
+        return (7, extract_numbers(wire))
+
+    # X group
+    if wire.startswith("X"):
+        return (8, extract_numbers(wire))
+
+    # Y group
+    if wire.startswith("Y"):
+        return (9, extract_numbers(wire))
+
+    # everything else
+    return (99, wire)
+
+
+# ---------------- UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
@@ -18,13 +68,12 @@ if uploaded_file:
     st.subheader("Preview")
     st.dataframe(df.head())
 
-    # ---------------- CLEAN COLUMNS ----------------
     df.columns = [str(c).strip() for c in df.columns]
 
     wire_col = "Wireno"
     connections = {}
 
-    # ---------------- PROCESS DATA ----------------
+    # ---------------- PROCESS ----------------
     for _, row in df.iterrows():
 
         wire = row[wire_col]
@@ -38,7 +87,7 @@ if uploaded_file:
         if wire not in connections:
             connections[wire] = set()
 
-        # ---------------- START SIDE ----------------
+        # START side
         start_component = row["Name"]
         start_conn = row["C.name"]
 
@@ -51,7 +100,7 @@ if uploaded_file:
             else:
                 connections[wire].add(f"{start_component}|MISSING_START_{row_id}")
 
-        # ---------------- END SIDE ----------------
+        # END side
         end_component = row["Name.1"] if "Name.1" in df.columns else row["Name"]
         end_conn = row["C.name.1"] if "C.name.1" in df.columns else row["C.name"]
 
@@ -70,7 +119,9 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    result = result.sort_values("Wire")
+    # ---------------- SORT (IMPORTANT UPGRADE) ----------------
+    result["sort_key"] = result["Wire"].apply(natural_key)
+    result = result.sort_values("sort_key").drop(columns=["sort_key"])
 
     st.subheader("Result")
     st.dataframe(result)
@@ -78,13 +129,14 @@ if uploaded_file:
     st.success(f"Total wires: {len(result)}")
     st.success(f"Total markings needed: {result['Markings'].sum()}")
 
-    # ---------------- DOWNLOAD EXCEL ----------------
+    # ---------------- FILE NAME ----------------
     original_name = uploaded_file.name
     base_name = os.path.splitext(original_name)[0]
     project_code = base_name.split()[0]
 
     download_name = f"{project_code} laidų žymėjimai.xlsx"
 
+    # ---------------- EXPORT EXCEL ----------------
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -92,6 +144,7 @@ if uploaded_file:
 
     output.seek(0)
 
+    # ---------------- DOWNLOAD ----------------
     st.download_button(
         "Download Excel",
         output,
