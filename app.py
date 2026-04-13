@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 
-st.title("Wire Marking Counter")
+st.title("Laidų žymėjimų skaičiuoklė")
 
 uploaded_file = st.file_uploader(
-    "Upload Excel file",
+    "Įkelkite excel failą:",
     type=["xlsx", "xls"]
 )
 
@@ -20,27 +20,30 @@ else:
     wire_col = df.columns[0]
 
     # All other columns = connection points
-    connection_cols = df.columns[1:]
-
     connections = {}
 
+# only keep columns called "Name"
+name_cols = [col for col in df.columns if col.strip() == "Name"]
+
 for _, row in df.iterrows():
-    wire = row[wire_col]
+    wire = row[df.columns[0]]  # first column = wire number
 
     if wire not in connections:
         connections[wire] = set()
 
-    # Process columns in pairs (Name + C name)
-    cols = list(connection_cols)
+    for col in name_cols:
+        value = row[col]
 
-    for i in range(0, len(cols), 2):
-        val1 = row[cols[i]]
-        val2 = row[cols[i+1]] if i+1 < len(cols) else None
+        if pd.notna(value):
+            connections[wire].add(str(value).strip())
 
-        if pd.notna(val1) or pd.notna(val2):
-            # Treat pair as one connection
-            pair = f"{val1}-{val2}"
-            connections[wire].add(pair)
+# build result
+result = pd.DataFrame([
+    {"Wire": wire, "Markings": len(values)}
+    for wire, values in connections.items()
+])
+
+st.write(result)
     # Build result table
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(points)}
