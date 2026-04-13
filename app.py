@@ -6,9 +6,9 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Fixed Sorting + Drag Rules)")
+st.title("Wire Marking Counter (Persistent Rules + Numbers Group)")
 
-# ---------------- STORAGE ----------------
+# ---------------- FILE STORAGE ----------------
 RULES_FILE = "rules.json"
 
 DEFAULT_RULES = [
@@ -20,35 +20,42 @@ DEFAULT_RULES = [
     "S_0V",
     "A",
     "X",
-    "Y"
+    "Y",
+    "NUMBERS"
 ]
 
+# ---------------- LOAD RULES ----------------
 def load_rules():
     if os.path.exists(RULES_FILE):
         with open(RULES_FILE, "r") as f:
             return json.load(f)
     return DEFAULT_RULES
 
+# ---------------- SAVE RULES ----------------
 def save_rules(rules):
     with open(RULES_FILE, "w") as f:
         json.dump(rules, f)
 
+# ---------------- SESSION INIT ----------------
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.header("Sorting Rules (Drag & Drop)")
 
+# Drag & drop reorder
 st.session_state.rules = sort_items(
     st.session_state.rules,
     direction="vertical"
 )
 
-st.sidebar.write("Current order:")
+st.sidebar.subheader("Current order")
 st.sidebar.write(st.session_state.rules)
 
-# Add rule
-new_rule = st.sidebar.text_input("Add new prefix (e.g. PWR, CTRL)")
+# ---------------- ADD RULE ----------------
+st.sidebar.subheader("Add rule")
+
+new_rule = st.sidebar.text_input("Prefix (e.g. PWR, CTRL, Z)")
 
 if st.sidebar.button("➕ Add rule"):
     if new_rule:
@@ -57,19 +64,25 @@ if st.sidebar.button("➕ Add rule"):
             st.session_state.rules.append(new_rule)
             st.rerun()
 
-# Remove rule
-remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
+# ---------------- REMOVE RULE ----------------
+st.sidebar.subheader("Remove rule")
+
+remove_rule = st.sidebar.selectbox(
+    "Select rule",
+    st.session_state.rules
+)
 
 if st.sidebar.button("❌ Remove rule"):
     st.session_state.rules.remove(remove_rule)
     st.rerun()
 
-# Save / Reset
+# ---------------- SAVE BUTTON ----------------
 if st.sidebar.button("💾 Save rules"):
     save_rules(st.session_state.rules)
-    st.sidebar.success("Saved!")
+    st.sidebar.success("Rules saved!")
 
-if st.sidebar.button("🔄 Reset"):
+# ---------------- RESET ----------------
+if st.sidebar.button("🔄 Reset to default"):
     st.session_state.rules = DEFAULT_RULES.copy()
     save_rules(st.session_state.rules)
     st.rerun()
@@ -77,7 +90,7 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION (FIXED) ----------------
+# ---------------- SORT FUNCTION (FIXED WITH NUMBERS GROUP) ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -85,18 +98,17 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
-    for prefix, priority in priority_map.items():
-        if wire.startswith(prefix):
-
-            # IMPORTANT FIX: numeric-only wires sort numerically
-            if wire.isdigit():
-                return (priority, int(wire))
-
-            return (priority, extract_numbers(wire))
-
-    # fallback numbers (e.g. "1", "2", "10")
+    # ---------------- NUMBERS GROUP ----------------
     if wire.isdigit():
-        return (90, int(wire))
+        return (priority_map.get("NUMBERS", 90), int(wire))
+
+    # ---------------- PREFIX GROUPS ----------------
+    for prefix, priority in priority_map.items():
+        if prefix == "NUMBERS":
+            continue
+
+        if wire.startswith(prefix):
+            return (priority, extract_numbers(wire))
 
     return (99, wire)
 
@@ -177,7 +189,7 @@ if uploaded_file:
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        result.to_excel(writer, index=False, sheet_name="Markings")
+        result.to_excel(writer, index=False, header=False, sheet_name="Markings")
 
     output.seek(0)
 
