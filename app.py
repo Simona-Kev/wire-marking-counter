@@ -4,7 +4,44 @@ import io
 import os
 import re
 
-st.title("Wire Marking Counter")
+st.title("Wire Marking Counter (Dynamic Sorting)")
+
+# ---------------- SESSION STATE (STORE RULES) ----------------
+if "rules" not in st.session_state:
+    st.session_state.rules = {
+        "1L": 1,
+        "L": 2,
+        "N": 3,
+        "24V": 4,
+        "0V": 5,
+        "S_0V": 6,
+        "A": 7,
+        "X": 8,
+        "Y": 9
+    }
+
+# ---------------- SIDEBAR UI ----------------
+st.sidebar.header("Sorting Rules")
+
+st.sidebar.write("Edit priority (lower = higher priority)")
+
+for key in list(st.session_state.rules.keys()):
+    st.session_state.rules[key] = st.sidebar.number_input(
+        f"{key}",
+        value=st.session_state.rules[key],
+        step=1
+    )
+
+# ➕ Add new rule
+st.sidebar.subheader("Add new rule")
+
+new_prefix = st.sidebar.text_input("Prefix (e.g. 24V, Z, PWR)")
+new_priority = st.sidebar.number_input("Priority", value=10, step=1)
+
+if st.sidebar.button("Add rule"):
+    if new_prefix:
+        st.session_state.rules[new_prefix.upper()] = new_priority
+        st.rerun()
 
 # ---------------- NATURAL SORT FUNCTION ----------------
 def natural_key(wire):
@@ -14,50 +51,11 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
-    # 1L group
-    if wire.startswith("1L"):
-        return (1, extract_numbers(wire))
+    # match rules dynamically
+    for prefix, priority in st.session_state.rules.items():
+        if wire.startswith(prefix):
+            return (priority, extract_numbers(wire))
 
-    # L group
-    if wire.startswith("L") and not wire.startswith("1L"):
-        return (2, extract_numbers(wire))
-
-    # N group
-    if wire.startswith("N"):
-        return (3, extract_numbers(wire))
-
-    # 24V group
-    if wire.startswith("24V"):
-        return (4, extract_numbers(wire))
-
-    # ---------------- 0V / S_0V FIX (CORRECT INDENTATION) ----------------
-    if wire == "0V":
-        return (5, 0)
-
-    if wire == "S_0V":
-        return (6, 0)
-
-    if wire.startswith("S_0V"):
-        nums = re.findall(r"\d+", wire)
-        return (7, int(nums[0]) if nums else 0)
-
-    # pure numbers
-    if wire.isdigit():
-        return (8, int(wire))
-
-    # A group
-    if wire.startswith("A"):
-        return (9, extract_numbers(wire))
-
-    # X group
-    if wire.startswith("X"):
-        return (10, extract_numbers(wire))
-
-    # Y group
-    if wire.startswith("Y"):
-        return (11, extract_numbers(wire))
-
-    # everything else
     return (99, wire)
 
 
@@ -66,7 +64,6 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
 
-    # ---------------- READ FILE ----------------
     if uploaded_file.name.endswith(".xls"):
         df = pd.read_excel(uploaded_file, engine="xlrd")
     else:
@@ -94,7 +91,7 @@ if uploaded_file:
         if wire not in connections:
             connections[wire] = set()
 
-        # START side
+        # START
         start_component = row["Name"]
         start_conn = row["C.name"]
 
@@ -102,12 +99,11 @@ if uploaded_file:
             start_component = str(start_component).strip()
 
             if pd.notna(start_conn):
-                start_conn = str(start_conn).strip()
-                connections[wire].add(f"{start_component}|{start_conn}")
+                connections[wire].add(f"{start_component}|{str(start_conn).strip()}")
             else:
                 connections[wire].add(f"{start_component}|MISSING_START_{row_id}")
 
-        # END side
+        # END
         end_component = row["Name.1"] if "Name.1" in df.columns else row["Name"]
         end_conn = row["C.name.1"] if "C.name.1" in df.columns else row["C.name"]
 
@@ -115,8 +111,7 @@ if uploaded_file:
             end_component = str(end_component).strip()
 
             if pd.notna(end_conn):
-                end_conn = str(end_conn).strip()
-                connections[wire].add(f"{end_component}|{end_conn}")
+                connections[wire].add(f"{end_component}|{str(end_conn).strip()}")
             else:
                 connections[wire].add(f"{end_component}|MISSING_END_{row_id}")
 
@@ -126,7 +121,6 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # ---------------- SORT ----------------
     result["sort_key"] = result["Wire"].apply(natural_key)
     result = result.sort_values("sort_key").drop(columns=["sort_key"])
 
@@ -136,14 +130,13 @@ if uploaded_file:
     st.success(f"Total wires: {len(result)}")
     st.success(f"Total markings needed: {result['Markings'].sum()}")
 
-    # ---------------- FILE NAME ----------------
+    # ---------------- EXPORT ----------------
     original_name = uploaded_file.name
     base_name = os.path.splitext(original_name)[0]
     project_code = base_name.split()[0]
 
     download_name = f"{project_code} laidų žymėjimai.xlsx"
 
-    # ---------------- EXPORT EXCEL ----------------
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -151,7 +144,6 @@ if uploaded_file:
 
     output.seek(0)
 
-    # ---------------- DOWNLOAD ----------------
     st.download_button(
         "Download Excel",
         output,
