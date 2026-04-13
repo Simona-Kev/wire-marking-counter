@@ -8,8 +8,10 @@ uploaded_file = st.file_uploader(
     type=["xlsx", "xls"]
 )
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+if uploaded_file.name.endswith(".xls"):
+    df = pd.read_excel(uploaded_file, engine="xlrd")
+else:
+    df = pd.read_excel(uploaded_file, engine="openpyxl")
 
     st.subheader("Preview")
     st.write(df)
