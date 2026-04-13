@@ -7,24 +7,20 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
 
-    # Read Excel safely (xlsx + xls)
+    # Read file safely
     if uploaded_file.name.endswith(".xls"):
         df = pd.read_excel(uploaded_file, engine="xlrd")
     else:
         df = pd.read_excel(uploaded_file, engine="openpyxl")
 
     st.subheader("Preview")
-    st.write(df.head())
+    st.dataframe(df.head())
 
     # First column = wire ID
     wire_col = df.columns[0]
 
-    # Only columns called "Name"
-    name_cols = [col for col in df.columns if col.strip() == "Name"]
-
-    if not name_cols:
-        st.error("No column named 'Name' found in file.")
-        st.stop()
+    # FIXED: only columns B and D
+    name_cols = [df.columns[1], df.columns[3]]
 
     connections = {}
 
@@ -45,7 +41,7 @@ if uploaded_file:
             if pd.notna(value):
                 connections[wire].add(str(value).strip())
 
-    # Build result table
+    # Build result
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(values)}
         for wire, values in connections.items()
@@ -59,7 +55,6 @@ if uploaded_file:
     st.success(f"Total wires: {len(result)}")
     st.success(f"Total markings needed: {result['Markings'].sum()}")
 
-    # Download
     st.download_button(
         "Download CSV",
         result.to_csv(index=False),
