@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Fully Drag-Based System)")
+st.title("Wire Marking Counter (Fixed NUMBERS Drag System)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -40,7 +40,7 @@ def save_rules(rules):
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
-# ---------------- SIDEBAR ----------------
+# ---------------- SIDEBAR UI ----------------
 st.sidebar.header("Sorting Rules (Drag & Drop)")
 
 st.session_state.rules = sort_items(
@@ -81,7 +81,7 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION (UNIFIED SYSTEM) ----------------
+# ---------------- SORT FUNCTION (FINAL FIX) ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -89,8 +89,16 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
+    is_number = wire.isdigit()
+
     for prefix, priority in priority_map.items():
-        if wire.startswith(prefix):
+
+        # NUMBERS GROUP (draggable + real numeric capture)
+        if prefix == "NUMBERS" and is_number:
+            return (priority, int(wire))
+
+        # normal prefix matching
+        if prefix != "NUMBERS" and wire.startswith(prefix):
             return (priority, extract_numbers(wire))
 
     return (99, wire)
