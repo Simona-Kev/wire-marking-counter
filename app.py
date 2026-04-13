@@ -92,6 +92,12 @@ priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
+    def get_suffix_number(text, prefix):
+        # removes prefix and extracts trailing number
+        rest = text[len(prefix):]
+        nums = re.findall(r"\d+", rest)
+        return int(nums[0]) if nums else None
+
     def nums(text):
         found = re.findall(r"\d+", text)
         return [int(x) for x in found] if found else []
@@ -99,37 +105,37 @@ def natural_key(wire):
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
 
-            n = nums(wire)
-
-            # ---------------- FIX 24V / S_0V ----------------
-            # base first, then _1 _2 _10 correctly
+            # ---------------- FIX: 24V / S_0V ----------------
             if prefix in ["24V", "S_0V"]:
 
                 if wire == prefix:
+                    # base always first
                     return (priority, 0, 0)
 
-                if n:
-                    # extract suffix order safely
-                    suffix = n[0]
-                    return (priority, 1, suffix)
+                suffix = get_suffix_number(wire, prefix)
+
+                if suffix is not None:
+                    return (priority, 1, suffix)  # all variants after base
 
                 return (priority, 0, 0)
 
             # ---------------- X / Y ----------------
             if prefix in ["X", "Y"]:
+                n = nums(wire)
                 if len(n) >= 2:
                     return (priority, n[0], n[1])
                 elif len(n) == 1:
                     return (priority, n[0], 0)
                 return (priority, 0, 0)
 
-            # ---------------- NORMAL ----------------
+            # ---------------- NORMAL GROUPS ----------------
+            n = nums(wire)
             if n:
                 return (priority, n[0], 0)
 
             return (priority, 0, 0)
 
-    # numbers last (true numeric sort)
+    # ---------------- NUMBERS LAST ----------------
     if wire.isdigit():
         return (999, int(wire), 0)
 
