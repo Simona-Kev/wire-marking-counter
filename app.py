@@ -7,7 +7,7 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
 
-    # Read file safely
+    # Read file
     if uploaded_file.name.endswith(".xls"):
         df = pd.read_excel(uploaded_file, engine="xlrd")
     else:
@@ -16,11 +16,20 @@ if uploaded_file:
     st.subheader("Preview")
     st.dataframe(df.head())
 
-    # First column = wire ID
+    # Wire column = first column
     wire_col = df.columns[0]
 
-    # FIXED: only columns B and D
-    name_cols = [df.columns[1], df.columns[3]]
+    # CLEAN column names (important fix!)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Find ALL "Name" columns (case-insensitive)
+    name_cols = [col for col in df.columns if str(col).strip().lower() == "name"]
+
+    st.write("Detected Name columns:", name_cols)
+
+    if not name_cols:
+        st.error("No 'Name' columns found.")
+        st.stop()
 
     connections = {}
 
@@ -39,9 +48,10 @@ if uploaded_file:
             value = row[col]
 
             if pd.notna(value):
-                connections[wire].add(str(value).strip())
+                val = str(value).strip()
+                if val:
+                    connections[wire].add(val)
 
-    # Build result
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(values)}
         for wire, values in connections.items()
