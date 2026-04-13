@@ -77,7 +77,7 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION (SAFE) ----------------
+# ---------------- SORT FUNCTION ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
@@ -85,16 +85,14 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return int(nums[0]) if nums else 0
 
-    # ---------------- PURE NUMBERS (ALWAYS LAST) ----------------
+    # numbers always last
     if wire.isdigit():
         return (999, int(wire))
 
-    # ---------------- PREFIX GROUPS ----------------
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
             return (priority, extract_numbers(wire))
 
-    # fallback
     return (999, wire)
 
 
@@ -155,14 +153,13 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
-    # SAFE SORT KEY (NO TYPE CRASH)
-    result["sort_key"] = result["Wire"].apply(natural_key)
+    # ---------------- SAFE SORT (NO CRASH) ----------------
+    result["sort_group"] = result["Wire"].apply(lambda w: natural_key(w)[0])
+    result["sort_value"] = result["Wire"].apply(lambda w: natural_key(w)[1])
 
-    # force consistent tuple sorting
-    result = result.sort_values(
-        by="sort_key",
-        key=lambda col: col.apply(lambda x: (x[0], x[1] if isinstance(x[1], int) else str(x[1])))
-    ).drop(columns=["sort_key"])
+    result = result.sort_values(by=["sort_group", "sort_value"]).drop(
+        columns=["sort_group", "sort_value"]
+    )
 
     st.subheader("Result")
     st.dataframe(result)
