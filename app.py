@@ -47,7 +47,7 @@ if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
 # =========================================================
-# SIDEBAR (ONLY ACTIVE FOR WIRE TOOL)
+# SIDEBAR (ONLY FOR WIRE TOOL)
 # =========================================================
 st.sidebar.header("Sorting Rules")
 
@@ -94,7 +94,7 @@ if mode == "Wire Marking Counter":
         st.rerun()
 
 else:
-    st.sidebar.info("Rules available only in Wire tool")
+    st.sidebar.info("Sorting rules available only in Wire tool")
 
 # =========================================================
 # PRIORITY MAP
@@ -102,7 +102,7 @@ else:
 priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
 
 # =========================================================
-# SORT FUNCTION (FIXED FINAL VERSION)
+# SORT FUNCTION (FIXED)
 # =========================================================
 def natural_key(wire):
     wire = str(wire).strip().upper()
@@ -116,24 +116,15 @@ def natural_key(wire):
 
             n = nums(wire)
 
-            # -------------------------
-            # FIX: 24V / S_0V FAMILY
-            # -------------------------
+            # 24V / S_0V FIX
             if prefix in ["24V", "S_0V"]:
-
-                # base (24V / S_0V)
                 if wire == prefix:
                     return (priority, 0, 0)
-
-                # 24V_1 / S_0V_1 / etc
                 if n:
                     return (priority, 1, n[0])
-
                 return (priority, 0, 0)
 
-            # -------------------------
             # X / Y FIX
-            # -------------------------
             if prefix in ["X", "Y"]:
                 if len(n) >= 2:
                     return (priority, n[0], n[1])
@@ -141,17 +132,11 @@ def natural_key(wire):
                     return (priority, n[0], 0)
                 return (priority, 0, 0)
 
-            # -------------------------
-            # OTHER PREFIXES
-            # -------------------------
             if n:
                 return (priority, n[0], 0)
 
             return (priority, 0, 0)
 
-    # -------------------------
-    # PURE NUMBERS LAST GROUP
-    # -------------------------
     if wire.isdigit():
         return (999, int(wire), 0)
 
@@ -222,8 +207,9 @@ if mode == "Wire Marking Counter":
 
         output = io.BytesIO()
 
+        # ✅ FIXED EXCEL EXPORT
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(output, index=False, sheet_name="Laidų žymėjimai")
+            result.to_excel(writer, index=False, sheet_name="Laidų žymėjimai")
 
         output.seek(0)
 
@@ -263,7 +249,6 @@ if mode == "Component Marking Cleaner":
             st.stop()
 
         values = df["Name"].dropna().astype(str).str.strip()
-
         unique_values = sorted(set(values))
 
         result = pd.DataFrame({"Marking": unique_values})
@@ -274,8 +259,9 @@ if mode == "Component Marking Cleaner":
 
         output = io.BytesIO()
 
+        # ✅ FIXED EXCEL EXPORT
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            result.to_excel(output, index=False, sheet_name="Komponentų žymėjimai")
+            result.to_excel(writer, index=False, sheet_name="Komponentų žymėjimai")
 
         output.seek(0)
 
