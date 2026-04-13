@@ -17,7 +17,7 @@ mode = st.radio(
 )
 
 # =========================================================
-# RULES STORAGE
+# RULE STATE
 # =========================================================
 RULES_FILE = "rules.json"
 
@@ -46,8 +46,12 @@ def save_rules(rules):
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
+# 👉 triggers recompute when rules change
+if "rules_version" not in st.session_state:
+    st.session_state.rules_version = 0
+
 # =========================================================
-# SIDEBAR (ONLY FOR WIRE TOOL)
+# SIDEBAR (ONLY WIRE TOOL)
 # =========================================================
 st.sidebar.header("Sorting Rules")
 
@@ -60,6 +64,7 @@ if mode == "Wire Marking Counter":
 
     if new_rules != st.session_state.rules:
         st.session_state.rules = new_rules
+        st.session_state.rules_version += 1
         st.rerun()
 
     st.sidebar.write("Current order:")
@@ -73,6 +78,7 @@ if mode == "Wire Marking Counter":
             r = new_rule.upper()
             if r not in st.session_state.rules:
                 st.session_state.rules.append(r)
+                st.session_state.rules_version += 1
                 st.rerun()
 
     # REMOVE RULE
@@ -80,21 +86,23 @@ if mode == "Wire Marking Counter":
 
     if st.sidebar.button("❌ Delete rule"):
         st.session_state.rules.remove(remove_rule)
+        st.session_state.rules_version += 1
         st.rerun()
 
-    # SAVE RULES
+    # SAVE
     if st.sidebar.button("💾 Save rules"):
         save_rules(st.session_state.rules)
         st.success("Rules saved!")
 
-    # RESET RULES
+    # RESET
     if st.sidebar.button("🔄 Reset rules"):
         st.session_state.rules = DEFAULT_RULES.copy()
         save_rules(st.session_state.rules)
+        st.session_state.rules_version += 1
         st.rerun()
 
 else:
-    st.sidebar.info("Sorting rules available only in Wire tool")
+    st.sidebar.info("Rules available only in Wire tool")
 
 # =========================================================
 # PRIORITY MAP
@@ -143,6 +151,12 @@ def natural_key(wire):
     return (999, 0, wire)
 
 # =========================================================
+# STORE UPLOADED DATA (IMPORTANT FIX)
+# =========================================================
+if "wire_df" not in st.session_state:
+    st.session_state.wire_df = None
+
+# =========================================================
 # WIRE TOOL
 # =========================================================
 if mode == "Wire Marking Counter":
@@ -150,11 +164,14 @@ if mode == "Wire Marking Counter":
     uploaded_file = st.file_uploader("Upload Wire Excel", type=["xlsx", "xls"])
 
     if uploaded_file:
-
-        df = pd.read_excel(
+        st.session_state.wire_df = pd.read_excel(
             uploaded_file,
             engine="xlrd" if uploaded_file.name.endswith(".xls") else "openpyxl"
         )
+
+    df = st.session_state.wire_df
+
+    if df is not None:
 
         df.columns = [str(c).strip() for c in df.columns]
 
@@ -207,7 +224,6 @@ if mode == "Wire Marking Counter":
 
         output = io.BytesIO()
 
-        # ✅ FIXED EXCEL EXPORT
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             result.to_excel(writer, index=False, sheet_name="Laidų žymėjimai")
 
@@ -259,7 +275,6 @@ if mode == "Component Marking Cleaner":
 
         output = io.BytesIO()
 
-        # ✅ FIXED EXCEL EXPORT
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             result.to_excel(writer, index=False, sheet_name="Komponentų žymėjimai")
 
