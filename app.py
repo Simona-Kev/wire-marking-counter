@@ -3,28 +3,46 @@ import pandas as pd
 import io
 import os
 import re
+import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Drag + Add Rules)")
+st.title("Wire Marking Counter (Persistent Rules)")
 
-# ---------------- DEFAULT RULES ----------------
+# ---------------- FILE STORAGE ----------------
+RULES_FILE = "rules.json"
+
+DEFAULT_RULES = [
+    "1L",
+    "L",
+    "N",
+    "24V",
+    "0V",
+    "S_0V",
+    "A",
+    "X",
+    "Y"
+]
+
+# ---------------- LOAD RULES ----------------
+def load_rules():
+    if os.path.exists(RULES_FILE):
+        with open(RULES_FILE, "r") as f:
+            return json.load(f)
+    return DEFAULT_RULES
+
+# ---------------- SAVE RULES ----------------
+def save_rules(rules):
+    with open(RULES_FILE, "w") as f:
+        json.dump(rules, f)
+
+# ---------------- SESSION INIT ----------------
 if "rules" not in st.session_state:
-    st.session_state.rules = [
-        "1L",
-        "L",
-        "N",
-        "24V",
-        "0V",
-        "S_0V",
-        "A",
-        "X",
-        "Y"
-    ]
+    st.session_state.rules = load_rules()
 
 # ---------------- SIDEBAR ----------------
-st.sidebar.header("Sorting Rules")
+st.sidebar.header("Sorting Rules (Drag & Drop)")
 
-# ---------------- DRAG & DROP ----------------
+# Drag & drop reorder
 st.session_state.rules = sort_items(
     st.session_state.rules,
     direction="vertical"
@@ -33,16 +51,14 @@ st.session_state.rules = sort_items(
 st.sidebar.subheader("Current order")
 st.sidebar.write(st.session_state.rules)
 
-# ---------------- ADD NEW RULE ----------------
-st.sidebar.subheader("Add new rule")
+# ---------------- ADD RULE ----------------
+st.sidebar.subheader("Add rule")
 
 new_rule = st.sidebar.text_input("Prefix (e.g. PWR, CTRL, Z)")
-new_priority_hint = st.sidebar.number_input("Priority (optional hint)", value=10)
 
 if st.sidebar.button("➕ Add rule"):
     if new_rule:
         new_rule = new_rule.upper()
-
         if new_rule not in st.session_state.rules:
             st.session_state.rules.append(new_rule)
             st.rerun()
@@ -51,12 +67,23 @@ if st.sidebar.button("➕ Add rule"):
 st.sidebar.subheader("Remove rule")
 
 remove_rule = st.sidebar.selectbox(
-    "Select rule to remove",
-    options=st.session_state.rules
+    "Select rule",
+    st.session_state.rules
 )
 
 if st.sidebar.button("❌ Remove rule"):
     st.session_state.rules.remove(remove_rule)
+    st.rerun()
+
+# ---------------- SAVE BUTTON ----------------
+if st.sidebar.button("💾 Save rules"):
+    save_rules(st.session_state.rules)
+    st.sidebar.success("Rules saved!")
+
+# ---------------- RESET ----------------
+if st.sidebar.button("🔄 Reset to default"):
+    st.session_state.rules = DEFAULT_RULES.copy()
+    save_rules(st.session_state.rules)
     st.rerun()
 
 # ---------------- PRIORITY MAP ----------------
@@ -127,6 +154,7 @@ if uploaded_file:
             else:
                 connections[wire].add(f"{end_component}|MISSING_END_{row_id}")
 
+    # ---------------- RESULT ----------------
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(values)}
         for wire, values in connections.items()
@@ -141,7 +169,7 @@ if uploaded_file:
     st.success(f"Total wires: {len(result)}")
     st.success(f"Total markings needed: {result['Markings'].sum()}")
 
-    # ---------------- DOWNLOAD ----------------
+    # ---------------- EXPORT ----------------
     original_name = uploaded_file.name
     base_name = os.path.splitext(original_name)[0]
     project_code = base_name.split()[0]
