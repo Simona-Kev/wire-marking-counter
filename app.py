@@ -69,6 +69,7 @@ if mode == "Wire Marking Counter":
     st.sidebar.write("Current order:")
     st.sidebar.write(st.session_state.rules)
 
+    # ADD RULE
     new_rule = st.sidebar.text_input("Add rule")
 
     if st.sidebar.button("➕ Add rule"):
@@ -79,6 +80,7 @@ if mode == "Wire Marking Counter":
                 st.session_state.rules_version += 1
                 st.rerun()
 
+    # REMOVE RULE
     remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
 
     if st.sidebar.button("❌ Delete rule"):
@@ -105,29 +107,46 @@ else:
 priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
 
 # =========================================================
-# SORT FUNCTION
+# 🔥 FIXED SORT FUNCTION (24V / S_0V CORRECT)
 # =========================================================
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
     def nums(text):
-        found = re.findall(r"\d+", text)
-        return [int(x) for x in found] if found else []
+        return [int(x) for x in re.findall(r"\d+", text)] if re.findall(r"\d+", text) else []
 
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
 
-            n = nums(wire)
+            suffix = wire[len(prefix):]
+            n = nums(suffix)
 
-            # FIX 24V + S_0V
+            # =====================================================
+            # FIX 24V / S_0V ORDER: base → 1 → 2 → 3
+            # =====================================================
             if prefix in ["24V", "S_0V"]:
-                if wire == prefix:
-                    return (priority, 0, 0)
-                if n:
-                    return (priority, 1, n[0])
-                return (priority, 0, 0)
 
-            # FIX X / Y
+                # base item (24V or S_0V)
+                if suffix == "" or suffix == "_":
+                    return (priority, 0)
+
+                # remove underscore if exists
+                if suffix.startswith("_"):
+                    suffix = suffix[1:]
+
+                # numeric suffix
+                if suffix.isdigit():
+                    return (priority, int(suffix))
+
+                # fallback number extraction
+                if n:
+                    return (priority, n[0])
+
+                return (priority, 999)
+
+            # =====================================================
+            # X / Y FIX
+            # =====================================================
             if prefix in ["X", "Y"]:
                 if len(n) >= 2:
                     return (priority, n[0], n[1])
@@ -135,18 +154,21 @@ def natural_key(wire):
                     return (priority, n[0], 0)
                 return (priority, 0, 0)
 
+            # =====================================================
+            # DEFAULT GROUP
+            # =====================================================
             if n:
                 return (priority, n[0], 0)
 
             return (priority, 0, 0)
 
     if wire.isdigit():
-        return (999, int(wire), 0)
+        return (999, int(wire))
 
     return (999, 0, wire)
 
 # =========================================================
-# STORE DATA
+# DATA STORAGE
 # =========================================================
 if "wire_df" not in st.session_state:
     st.session_state.wire_df = None
@@ -224,11 +246,9 @@ if mode == "Wire Marking Counter":
 
         output.seek(0)
 
-        # ✅ SAFE FILE NAME FIX (NO CRASH)
         base = "output"
         if uploaded_file is not None:
-            base = os.path.splitext(uploaded_file.name)[0]
-            base = base.split()[0] if base else "output"
+            base = os.path.splitext(uploaded_file.name)[0].split()[0]
 
         st.download_button(
             "Download Excel",
@@ -281,8 +301,7 @@ if mode == "Component Marking Cleaner":
 
         base = "output"
         if uploaded_file is not None:
-            base = os.path.splitext(uploaded_file.name)[0]
-            base = base.split()[0] if base else "output"
+            base = os.path.splitext(uploaded_file.name)[0].split()[0]
 
         st.download_button(
             "Download Unique Markings",
