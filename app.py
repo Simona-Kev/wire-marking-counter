@@ -5,9 +5,9 @@ import os
 import re
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Drag & Drop Sorting)")
+st.title("Wire Marking Counter (Drag + Add Rules)")
 
-# ---------------- DEFAULT SORT ORDER ----------------
+# ---------------- DEFAULT RULES ----------------
 if "rules" not in st.session_state:
     st.session_state.rules = [
         "1L",
@@ -21,18 +21,45 @@ if "rules" not in st.session_state:
         "Y"
     ]
 
-# ---------------- DRAG & DROP UI ----------------
-st.sidebar.header("Sorting Priority (Drag to reorder)")
+# ---------------- SIDEBAR ----------------
+st.sidebar.header("Sorting Rules")
 
+# ---------------- DRAG & DROP ----------------
 st.session_state.rules = sort_items(
     st.session_state.rules,
     direction="vertical"
 )
 
-st.sidebar.write("Current order:")
+st.sidebar.subheader("Current order")
 st.sidebar.write(st.session_state.rules)
 
-# Convert list → priority map
+# ---------------- ADD NEW RULE ----------------
+st.sidebar.subheader("Add new rule")
+
+new_rule = st.sidebar.text_input("Prefix (e.g. PWR, CTRL, Z)")
+new_priority_hint = st.sidebar.number_input("Priority (optional hint)", value=10)
+
+if st.sidebar.button("➕ Add rule"):
+    if new_rule:
+        new_rule = new_rule.upper()
+
+        if new_rule not in st.session_state.rules:
+            st.session_state.rules.append(new_rule)
+            st.rerun()
+
+# ---------------- REMOVE RULE ----------------
+st.sidebar.subheader("Remove rule")
+
+remove_rule = st.sidebar.selectbox(
+    "Select rule to remove",
+    options=st.session_state.rules
+)
+
+if st.sidebar.button("❌ Remove rule"):
+    st.session_state.rules.remove(remove_rule)
+    st.rerun()
+
+# ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
 # ---------------- SORT FUNCTION ----------------
@@ -43,7 +70,6 @@ def natural_key(wire):
         nums = re.findall(r"\d+", text)
         return tuple(map(int, nums)) if nums else (0,)
 
-    # match by prefix order from UI
     for prefix, priority in priority_map.items():
         if wire.startswith(prefix):
             return (priority, extract_numbers(wire))
@@ -51,7 +77,7 @@ def natural_key(wire):
     return (99, wire)
 
 
-# ---------------- FILE UPLOAD ----------------
+# ---------------- UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file:
@@ -69,11 +95,9 @@ if uploaded_file:
     wire_col = "Wireno"
     connections = {}
 
-    # ---------------- PROCESS DATA ----------------
     for _, row in df.iterrows():
 
         wire = row[wire_col]
-
         if pd.isna(wire):
             continue
 
@@ -88,10 +112,7 @@ if uploaded_file:
         start_conn = row["C.name"]
 
         if pd.notna(start_component):
-            start_component = str(start_component).strip()
-
             if pd.notna(start_conn):
-                start_conn = str(start_conn).strip()
                 connections[wire].add(f"{start_component}|{start_conn}")
             else:
                 connections[wire].add(f"{start_component}|MISSING_START_{row_id}")
@@ -101,15 +122,11 @@ if uploaded_file:
         end_conn = row["C.name.1"] if "C.name.1" in df.columns else row["C.name"]
 
         if pd.notna(end_component):
-            end_component = str(end_component).strip()
-
             if pd.notna(end_conn):
-                end_conn = str(end_conn).strip()
                 connections[wire].add(f"{end_component}|{end_conn}")
             else:
                 connections[wire].add(f"{end_component}|MISSING_END_{row_id}")
 
-    # ---------------- RESULT ----------------
     result = pd.DataFrame([
         {"Wire": wire, "Markings": len(values)}
         for wire, values in connections.items()
@@ -124,7 +141,7 @@ if uploaded_file:
     st.success(f"Total wires: {len(result)}")
     st.success(f"Total markings needed: {result['Markings'].sum()}")
 
-    # ---------------- DOWNLOAD FILE NAME ----------------
+    # ---------------- DOWNLOAD ----------------
     original_name = uploaded_file.name
     base_name = os.path.splitext(original_name)[0]
     project_code = base_name.split()[0]
