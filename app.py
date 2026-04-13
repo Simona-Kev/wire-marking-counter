@@ -6,7 +6,7 @@ import re
 import json
 from streamlit_sortables import sort_items
 
-st.title("Wire Marking Counter (Fixed Sorting + Drag Rules)")
+st.title("Wire Marking Counter (Stable Sorting Fix)")
 
 # ---------------- STORAGE ----------------
 RULES_FILE = "rules.json"
@@ -77,15 +77,15 @@ if st.sidebar.button("🔄 Reset"):
 # ---------------- PRIORITY MAP ----------------
 priority_map = {prefix: i for i, prefix in enumerate(st.session_state.rules)}
 
-# ---------------- SORT FUNCTION (FINAL FIX) ----------------
+# ---------------- SORT FUNCTION (SAFE) ----------------
 def natural_key(wire):
     wire = str(wire).strip().upper()
 
     def extract_numbers(text):
         nums = re.findall(r"\d+", text)
-        return tuple(map(int, nums)) if nums else (0,)
+        return int(nums[0]) if nums else 0
 
-    # ---------------- PURE NUMBERS ALWAYS GO LAST ----------------
+    # ---------------- PURE NUMBERS (ALWAYS LAST) ----------------
     if wire.isdigit():
         return (999, int(wire))
 
@@ -94,7 +94,7 @@ def natural_key(wire):
         if wire.startswith(prefix):
             return (priority, extract_numbers(wire))
 
-    # fallback (unknown text)
+    # fallback
     return (999, wire)
 
 
@@ -123,7 +123,7 @@ if uploaded_file:
         if pd.isna(wire):
             continue
 
-        wire = str(wire).strip()
+        wire = str(wire).strip().upper()
         row_id = row.name
 
         if wire not in connections:
@@ -155,8 +155,14 @@ if uploaded_file:
         for wire, values in connections.items()
     ])
 
+    # SAFE SORT KEY (NO TYPE CRASH)
     result["sort_key"] = result["Wire"].apply(natural_key)
-    result = result.sort_values("sort_key").drop(columns=["sort_key"])
+
+    # force consistent tuple sorting
+    result = result.sort_values(
+        by="sort_key",
+        key=lambda col: col.apply(lambda x: (x[0], x[1] if isinstance(x[1], int) else str(x[1])))
+    ).drop(columns=["sort_key"])
 
     st.subheader("Result")
     st.dataframe(result)
