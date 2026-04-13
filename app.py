@@ -17,7 +17,7 @@ mode = st.radio(
 )
 
 # =========================================================
-# RULE STATE
+# RULES
 # =========================================================
 RULES_FILE = "rules.json"
 
@@ -46,12 +46,11 @@ def save_rules(rules):
 if "rules" not in st.session_state:
     st.session_state.rules = load_rules()
 
-# 👉 triggers recompute when rules change
 if "rules_version" not in st.session_state:
     st.session_state.rules_version = 0
 
 # =========================================================
-# SIDEBAR (ONLY WIRE TOOL)
+# SIDEBAR (WIRE ONLY)
 # =========================================================
 st.sidebar.header("Sorting Rules")
 
@@ -70,7 +69,6 @@ if mode == "Wire Marking Counter":
     st.sidebar.write("Current order:")
     st.sidebar.write(st.session_state.rules)
 
-    # ADD RULE
     new_rule = st.sidebar.text_input("Add rule")
 
     if st.sidebar.button("➕ Add rule"):
@@ -81,7 +79,6 @@ if mode == "Wire Marking Counter":
                 st.session_state.rules_version += 1
                 st.rerun()
 
-    # REMOVE RULE
     remove_rule = st.sidebar.selectbox("Remove rule", st.session_state.rules)
 
     if st.sidebar.button("❌ Delete rule"):
@@ -89,12 +86,10 @@ if mode == "Wire Marking Counter":
         st.session_state.rules_version += 1
         st.rerun()
 
-    # SAVE
     if st.sidebar.button("💾 Save rules"):
         save_rules(st.session_state.rules)
-        st.success("Rules saved!")
+        st.success("Saved!")
 
-    # RESET
     if st.sidebar.button("🔄 Reset rules"):
         st.session_state.rules = DEFAULT_RULES.copy()
         save_rules(st.session_state.rules)
@@ -102,7 +97,7 @@ if mode == "Wire Marking Counter":
         st.rerun()
 
 else:
-    st.sidebar.info("Rules available only in Wire tool")
+    st.sidebar.info("Rules only available in Wire tool")
 
 # =========================================================
 # PRIORITY MAP
@@ -110,7 +105,7 @@ else:
 priority_map = {p: i for i, p in enumerate(st.session_state.rules)}
 
 # =========================================================
-# SORT FUNCTION (FIXED)
+# SORT FUNCTION
 # =========================================================
 def natural_key(wire):
     wire = str(wire).strip().upper()
@@ -124,7 +119,7 @@ def natural_key(wire):
 
             n = nums(wire)
 
-            # 24V / S_0V FIX
+            # FIX 24V + S_0V
             if prefix in ["24V", "S_0V"]:
                 if wire == prefix:
                     return (priority, 0, 0)
@@ -132,7 +127,7 @@ def natural_key(wire):
                     return (priority, 1, n[0])
                 return (priority, 0, 0)
 
-            # X / Y FIX
+            # FIX X / Y
             if prefix in ["X", "Y"]:
                 if len(n) >= 2:
                     return (priority, n[0], n[1])
@@ -151,7 +146,7 @@ def natural_key(wire):
     return (999, 0, wire)
 
 # =========================================================
-# STORE UPLOADED DATA (IMPORTANT FIX)
+# STORE DATA
 # =========================================================
 if "wire_df" not in st.session_state:
     st.session_state.wire_df = None
@@ -229,7 +224,11 @@ if mode == "Wire Marking Counter":
 
         output.seek(0)
 
-        base = os.path.splitext(uploaded_file.name)[0].split()[0]
+        # ✅ SAFE FILE NAME FIX (NO CRASH)
+        base = "output"
+        if uploaded_file is not None:
+            base = os.path.splitext(uploaded_file.name)[0]
+            base = base.split()[0] if base else "output"
 
         st.download_button(
             "Download Excel",
@@ -280,7 +279,10 @@ if mode == "Component Marking Cleaner":
 
         output.seek(0)
 
-        base = os.path.splitext(uploaded_file.name)[0].split()[0]
+        base = "output"
+        if uploaded_file is not None:
+            base = os.path.splitext(uploaded_file.name)[0]
+            base = base.split()[0] if base else "output"
 
         st.download_button(
             "Download Unique Markings",
